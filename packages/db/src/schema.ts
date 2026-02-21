@@ -13,6 +13,12 @@ import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { z } from 'zod'
 
 export const userRoleEnum = pgEnum('user_role', ['employer', 'candidate'])
+export const submissionStatusEnum = pgEnum('submission_status', [
+  'pending',
+  'building',
+  'deployed',
+  'failed'
+])
 
 export const user = pgTable('users', {
   id: text('id').primaryKey(),
@@ -109,19 +115,57 @@ export const assignments = pgTable('assignments', {
     .$onUpdate(() => new Date())
 })
 
+export const submissions = pgTable(
+  'submissions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    assignmentId: uuid('assignment_id')
+      .notNull()
+      .references(() => assignments.id, { onDelete: 'cascade' }),
+    candidateId: text('candidate_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    repositoryUrl: text('repository_url').notNull(),
+    status: submissionStatusEnum('status').notNull().default('pending'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date())
+  },
+  (table) => [
+    index('submission_assignment_id_idx').on(table.assignmentId),
+    index('submission_candidate_id_idx').on(table.candidateId)
+  ]
+)
+
 export const userRelations = relations(user, ({ many }) => ({
-  assignments: many(assignments)
+  assignments: many(assignments),
+  submissions: many(submissions)
 }))
 
-export const assignmentRelations = relations(assignments, ({ one }) => ({
+export const assignmentRelations = relations(assignments, ({ one, many }) => ({
   employer: one(user, {
     fields: [assignments.employerId],
+    references: [user.id]
+  }),
+  submissions: many(submissions)
+}))
+
+export const submissionRelations = relations(submissions, ({ one }) => ({
+  assignment: one(assignments, {
+    fields: [submissions.assignmentId],
+    references: [assignments.id]
+  }),
+  candidate: one(user, {
+    fields: [submissions.candidateId],
     references: [user.id]
   })
 }))
 
 export const userSelectSchema = createSelectSchema(user)
 export const assignmentSelectSchema = createSelectSchema(assignments)
+export const submissionSelectSchema = createSelectSchema(submissions)
 
 export const createAssignmentSchema = createInsertSchema(assignments, {
   title: z.string().min(3).max(150),
@@ -137,4 +181,5 @@ export const createAssignmentSchema = createInsertSchema(assignments, {
 export type UserRole = (typeof userRoleEnum.enumValues)[number]
 export type User = typeof user.$inferSelect
 export type Assignment = typeof assignments.$inferSelect
+export type Submission = typeof submissions.$inferSelect
 export type NewAssignment = z.infer<typeof createAssignmentSchema>

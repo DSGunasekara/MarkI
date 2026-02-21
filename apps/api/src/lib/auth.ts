@@ -28,7 +28,7 @@ export const auth = betterAuth({
         type: 'string',
         required: false,
         defaultValue: 'candidate',
-        input: false
+        input: true
       }
     }
   }

@@ -1,0 +1,43 @@
+# Employer Dashboard Overview API
+
+## Purpose
+Provide a single endpoint for employer dashboard data so the UI can render metrics and recent activity with one request.
+
+## Endpoint
+- `GET /api/dashboard/overview`
+
+### Query Params
+- `assignmentsLimit` (optional, integer, `1..25`)
+- `submissionsLimit` (optional, integer, `1..25`)
+
+### Auth
+- Requires authenticated session.
+- Requires `employer` role.
+
+## Response Shape
+- `metrics`
+  - `assignmentCount`
+  - `submissionCount`
+  - `pendingCount`
+  - `buildingCount`
+  - `deployedCount`
+  - `failedCount`
+- `recentAssignments[]`
+  - assignment identity, join code, submission count, latest submission timestamp
+- `recentSubmissions[]`
+  - submission identity, assignment title, candidate id, repository URL, status, timestamps
+
+## Data Flow
+1. Route validates query params with `@hono/zod-validator`.
+2. Controller verifies authenticated employer from middleware context.
+3. Service executes aggregated SQL via Drizzle:
+   - metrics query
+   - recent assignments query (with submission counts)
+   - recent submissions query
+4. Controller returns normalized JSON under `data`.
+
+## Related Files
+- `/Users/Dilain/.codex/worktrees/5eff/MarkI/apps/api/src/routes/dashboard.routes.ts`
+- `/Users/Dilain/.codex/worktrees/5eff/MarkI/apps/api/src/controllers/dashboard.controller.ts`
+- `/Users/Dilain/.codex/worktrees/5eff/MarkI/apps/api/src/services/dashboard.service.ts`
+- `/Users/Dilain/.codex/worktrees/5eff/MarkI/packages/db/src/schema.ts`

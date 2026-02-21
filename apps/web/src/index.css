@@ -127,3 +127,23 @@
     @apply font-sans;
     }
 }
+
+@layer components {
+  .app-shell {
+    @apply min-h-screen bg-background text-foreground;
+    background-image: radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 0);
+    background-size: 24px 24px;
+  }
+
+  .app-header {
+    @apply border-b border-border bg-background/85 backdrop-blur;
+  }
+
+  .app-panel {
+    @apply border border-border bg-card/85 text-card-foreground;
+  }
+
+  .app-overline {
+    @apply font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground;
+  }
+}
