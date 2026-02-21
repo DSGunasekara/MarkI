@@ -15,11 +15,50 @@ const createSubmissionSchema = z.object({
     .trim()
     .url()
     .max(1024)
-    .regex(githubRepoUrlRegex, 'Repository URL must be a public GitHub repository link.')
+    .regex(githubRepoUrlRegex, 'Repository URL must be a GitHub repository link.')
+    .optional(),
+  repositoryFullName: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9_.-]+\/[a-z0-9_.-]+$/, 'Repository must match owner/repository format.')
+    .optional(),
+  githubInstallationId: z
+    .string()
+    .trim()
+    .regex(/^\d+$/, 'Installation ID must be numeric.')
+    .optional()
+}).superRefine((value, ctx) => {
+  const hasRepositoryUrl = typeof value.repositoryUrl === 'string' && value.repositoryUrl.length > 0
+  const hasRepositorySelection =
+    typeof value.repositoryFullName === 'string' &&
+    value.repositoryFullName.length > 0 &&
+    typeof value.githubInstallationId === 'string' &&
+    value.githubInstallationId.length > 0
+
+  if (!hasRepositoryUrl && !hasRepositorySelection) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        'Provide repositoryUrl or repositoryFullName with githubInstallationId.'
+    })
+  }
 })
 
 const candidateOverviewQuerySchema = z.object({
   submissionsLimit: z.coerce.number().int().min(1).max(25).optional()
+})
+
+const candidateRepositoriesQuerySchema = z.object({
+  installationId: z.string().trim().regex(/^\d+$/)
+})
+
+const candidateSubmissionParamsSchema = z.object({
+  submissionId: z.string().uuid()
+})
+
+const candidateSubmissionLogsQuerySchema = z.object({
+  runId: z.string().uuid().optional()
 })
 
 export const candidateRoutes = new Hono<AppBindings>()
@@ -36,6 +75,17 @@ candidateRoutes.post(
 )
 
 candidateRoutes.get(
+  '/github/repositories',
+  requireAuth,
+  requireRole(['candidate']),
+  zValidator('query', candidateRepositoriesQuerySchema),
+  async (c) => {
+    const query = c.req.valid('query')
+    return candidateController.githubRepositories(c, query)
+  }
+)
+
+candidateRoutes.get(
   '/overview',
   requireAuth,
   requireRole(['candidate']),
@@ -43,5 +93,18 @@ candidateRoutes.get(
   async (c) => {
     const query = c.req.valid('query')
     return candidateController.overview(c, query)
+  }
+)
+
+candidateRoutes.get(
+  '/submissions/:submissionId/logs',
+  requireAuth,
+  requireRole(['candidate']),
+  zValidator('param', candidateSubmissionParamsSchema),
+  zValidator('query', candidateSubmissionLogsQuerySchema),
+  async (c) => {
+    const params = c.req.valid('param')
+    const query = c.req.valid('query')
+    return candidateController.submissionLogs(c, params, query)
   }
 )

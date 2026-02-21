@@ -38,6 +38,10 @@ export type DashboardAssignment = {
 }
 
 export type DashboardSubmissionStatus = "pending" | "building" | "deployed" | "failed"
+export type PipelineRunStatus = "queued" | "running" | "deployed" | "failed"
+export type PipelineRunTrigger = "submission" | "push"
+export type PipelineLogStage = "system" | "clone" | "validate" | "install" | "build" | "deploy"
+export type PipelineLogLevel = "info" | "warn" | "error"
 
 export type DashboardSubmission = {
   id: string
@@ -45,6 +49,9 @@ export type DashboardSubmission = {
   assignmentTitle: string
   candidateId: string
   repositoryUrl: string
+  deployedUrl: string | null
+  latestCommitSha: string | null
+  lastBuildAt: string | null
   status: DashboardSubmissionStatus
   createdAt: string
   updatedAt: string
@@ -74,6 +81,9 @@ export type EmployerSubmissionExplorerRecord = {
   candidateName: string
   candidateEmail: string
   repositoryUrl: string
+  deployedUrl: string | null
+  latestCommitSha: string | null
+  lastBuildAt: string | null
   status: DashboardSubmissionStatus
   createdAt: string
   updatedAt: string
@@ -107,9 +117,48 @@ export type CandidateSubmission = {
   assignmentTitle: string
   joinCode: string
   repositoryUrl: string
+  deployedUrl: string | null
+  latestCommitSha: string | null
+  lastBuildAt: string | null
   status: DashboardSubmissionStatus
   createdAt: string
   updatedAt: string
+}
+
+export type SubmissionPipelineRun = {
+  id: string
+  trigger: PipelineRunTrigger
+  status: PipelineRunStatus
+  branch: string | null
+  commitSha: string | null
+  deploymentUrl: string | null
+  startedAt: string | null
+  finishedAt: string | null
+  createdAt: string
+}
+
+export type SubmissionPipelineLog = {
+  id: string
+  stage: PipelineLogStage
+  level: PipelineLogLevel
+  message: string
+  createdAt: string
+}
+
+export type SubmissionPipelineView = {
+  submission: {
+    id: string
+    assignmentId: string
+    assignmentTitle: string
+    repositoryUrl: string
+    status: DashboardSubmissionStatus
+    deployedUrl: string | null
+    latestCommitSha: string | null
+    lastBuildAt: string | null
+  }
+  selectedRun: SubmissionPipelineRun | null
+  runs: SubmissionPipelineRun[]
+  logs: SubmissionPipelineLog[]
 }
 
 export type CandidateOverview = {
@@ -121,6 +170,23 @@ export type CandidateOverview = {
     failedCount: number
   }
   recentSubmissions: CandidateSubmission[]
+}
+
+export type GitHubAppConfig = {
+  isConfigured: boolean
+  appSlug: string | null
+  appId: string | null
+  installUrl: string | null
+}
+
+export type GitHubInstallationRepository = {
+  fullName: string
+  name: string
+  owner: string
+  isPrivate: boolean
+  htmlUrl: string
+  cloneUrl: string
+  defaultBranch: string
 }
 
 type SessionEnvelope = {
@@ -170,6 +236,22 @@ type CandidateSubmissionEnvelope = {
       updatedAt: string
     }
     isResubmission: boolean
+    pipelineRunId: string
+  }
+}
+
+type SubmissionPipelineEnvelope = {
+  data: SubmissionPipelineView
+}
+
+type GitHubAppConfigEnvelope = {
+  data: GitHubAppConfig
+}
+
+type GitHubInstallationRepositoriesEnvelope = {
+  data: {
+    installationId: string
+    repositories: GitHubInstallationRepository[]
   }
 }
 
@@ -361,6 +443,25 @@ export const dashboardApi = {
       queryString.length > 0 ? `/api/dashboard/submissions?${queryString}` : "/api/dashboard/submissions"
     const payload = await request<DashboardSubmissionsEnvelope>(path)
     return payload.data
+  },
+
+  getSubmissionLogs: async (input: {
+    submissionId: string
+    runId?: string
+  }): Promise<SubmissionPipelineView> => {
+    const query = new URLSearchParams()
+    if (typeof input.runId === "string" && input.runId.length > 0) {
+      query.set("runId", input.runId)
+    }
+
+    const queryString = query.toString()
+    const path =
+      queryString.length > 0
+        ? `/api/dashboard/submissions/${input.submissionId}/logs?${queryString}`
+        : `/api/dashboard/submissions/${input.submissionId}/logs`
+
+    const payload = await request<SubmissionPipelineEnvelope>(path)
+    return payload.data
   }
 }
 
@@ -380,11 +481,14 @@ export const candidateApi = {
 
   submitRepository: async (input: {
     joinCode: string
-    repositoryUrl: string
+    repositoryUrl?: string
+    repositoryFullName?: string
+    githubInstallationId?: string
   }): Promise<{
     assignmentTitle: string
     joinCode: string
     isResubmission: boolean
+    pipelineRunId: string
   }> => {
     const payload = await request<CandidateSubmissionEnvelope>("/api/candidate/submissions", {
       method: "POST",
@@ -394,8 +498,49 @@ export const candidateApi = {
     return {
       assignmentTitle: payload.data.assignment.title,
       joinCode: payload.data.assignment.joinCode,
-      isResubmission: payload.data.isResubmission
+      isResubmission: payload.data.isResubmission,
+      pipelineRunId: payload.data.pipelineRunId
     }
+  },
+
+  getSubmissionLogs: async (input: {
+    submissionId: string
+    runId?: string
+  }): Promise<SubmissionPipelineView> => {
+    const query = new URLSearchParams()
+    if (typeof input.runId === "string" && input.runId.length > 0) {
+      query.set("runId", input.runId)
+    }
+
+    const queryString = query.toString()
+    const path =
+      queryString.length > 0
+        ? `/api/candidate/submissions/${input.submissionId}/logs?${queryString}`
+        : `/api/candidate/submissions/${input.submissionId}/logs`
+
+    const payload = await request<SubmissionPipelineEnvelope>(path)
+    return payload.data
+  },
+
+  getInstallationRepositories: async (installationId: string): Promise<{
+    installationId: string
+    repositories: GitHubInstallationRepository[]
+  }> => {
+    const query = new URLSearchParams({
+      installationId
+    })
+
+    const payload = await request<GitHubInstallationRepositoriesEnvelope>(
+      `/api/candidate/github/repositories?${query.toString()}`
+    )
+    return payload.data
+  }
+}
+
+export const integrationApi = {
+  getGitHubAppConfig: async (): Promise<GitHubAppConfig> => {
+    const payload = await request<GitHubAppConfigEnvelope>("/api/integrations/github/app")
+    return payload.data
   }
 }
 

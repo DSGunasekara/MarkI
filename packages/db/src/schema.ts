@@ -19,6 +19,22 @@ export const submissionStatusEnum = pgEnum('submission_status', [
   'deployed',
   'failed'
 ])
+export const buildRunTriggerEnum = pgEnum('build_run_trigger', ['submission', 'push'])
+export const buildRunStatusEnum = pgEnum('build_run_status', [
+  'queued',
+  'running',
+  'deployed',
+  'failed'
+])
+export const buildLogStageEnum = pgEnum('build_log_stage', [
+  'system',
+  'clone',
+  'validate',
+  'install',
+  'build',
+  'deploy'
+])
+export const buildLogLevelEnum = pgEnum('build_log_level', ['info', 'warn', 'error'])
 
 export const user = pgTable('users', {
   id: text('id').primaryKey(),
@@ -126,6 +142,12 @@ export const submissions = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     repositoryUrl: text('repository_url').notNull(),
+    repositoryFullName: text('repository_full_name'),
+    githubInstallationId: text('github_installation_id'),
+    repositoryDefaultBranch: text('repository_default_branch'),
+    latestCommitSha: text('latest_commit_sha'),
+    deployedUrl: text('deployed_url'),
+    lastBuildAt: timestamp('last_build_at', { withTimezone: true, mode: 'date' }),
     status: submissionStatusEnum('status').notNull().default('pending'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
@@ -135,7 +157,54 @@ export const submissions = pgTable(
   },
   (table) => [
     index('submission_assignment_id_idx').on(table.assignmentId),
-    index('submission_candidate_id_idx').on(table.candidateId)
+    index('submission_candidate_id_idx').on(table.candidateId),
+    index('submission_repository_full_name_idx').on(table.repositoryFullName),
+    index('submission_github_installation_id_idx').on(table.githubInstallationId)
+  ]
+)
+
+export const buildRuns = pgTable(
+  'build_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    submissionId: uuid('submission_id')
+      .notNull()
+      .references(() => submissions.id, { onDelete: 'cascade' }),
+    trigger: buildRunTriggerEnum('trigger').notNull(),
+    status: buildRunStatusEnum('status').notNull().default('queued'),
+    branch: text('branch'),
+    commitSha: text('commit_sha'),
+    deploymentUrl: text('deployment_url'),
+    startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
+    finishedAt: timestamp('finished_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date())
+  },
+  (table) => [
+    index('build_run_submission_id_idx').on(table.submissionId),
+    index('build_run_status_idx').on(table.status),
+    index('build_run_created_at_idx').on(table.createdAt)
+  ]
+)
+
+export const buildLogs = pgTable(
+  'build_logs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    buildRunId: uuid('build_run_id')
+      .notNull()
+      .references(() => buildRuns.id, { onDelete: 'cascade' }),
+    stage: buildLogStageEnum('stage').notNull(),
+    level: buildLogLevelEnum('level').notNull().default('info'),
+    message: text('message').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow()
+  },
+  (table) => [
+    index('build_log_build_run_id_idx').on(table.buildRunId),
+    index('build_log_build_run_created_at_idx').on(table.buildRunId, table.createdAt)
   ]
 )
 
@@ -152,7 +221,7 @@ export const assignmentRelations = relations(assignments, ({ one, many }) => ({
   submissions: many(submissions)
 }))
 
-export const submissionRelations = relations(submissions, ({ one }) => ({
+export const submissionRelations = relations(submissions, ({ one, many }) => ({
   assignment: one(assignments, {
     fields: [submissions.assignmentId],
     references: [assignments.id]
@@ -160,12 +229,30 @@ export const submissionRelations = relations(submissions, ({ one }) => ({
   candidate: one(user, {
     fields: [submissions.candidateId],
     references: [user.id]
+  }),
+  buildRuns: many(buildRuns)
+}))
+
+export const buildRunRelations = relations(buildRuns, ({ one, many }) => ({
+  submission: one(submissions, {
+    fields: [buildRuns.submissionId],
+    references: [submissions.id]
+  }),
+  logs: many(buildLogs)
+}))
+
+export const buildLogRelations = relations(buildLogs, ({ one }) => ({
+  buildRun: one(buildRuns, {
+    fields: [buildLogs.buildRunId],
+    references: [buildRuns.id]
   })
 }))
 
 export const userSelectSchema = createSelectSchema(user)
 export const assignmentSelectSchema = createSelectSchema(assignments)
 export const submissionSelectSchema = createSelectSchema(submissions)
+export const buildRunSelectSchema = createSelectSchema(buildRuns)
+export const buildLogSelectSchema = createSelectSchema(buildLogs)
 
 export const createAssignmentSchema = createInsertSchema(assignments, {
   title: z.string().min(3).max(150),
@@ -182,4 +269,6 @@ export type UserRole = (typeof userRoleEnum.enumValues)[number]
 export type User = typeof user.$inferSelect
 export type Assignment = typeof assignments.$inferSelect
 export type Submission = typeof submissions.$inferSelect
+export type BuildRun = typeof buildRuns.$inferSelect
+export type BuildLog = typeof buildLogs.$inferSelect
 export type NewAssignment = z.infer<typeof createAssignmentSchema>

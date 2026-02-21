@@ -3,9 +3,11 @@
 ## Scope
 Candidate users can now:
 - Join an assignment using a join code.
-- Submit or resubmit a public GitHub repository URL.
+- Select a repository from GitHub App installation and submit/resubmit.
 - View submission metrics and recent submission history.
 - Navigate between candidate routes from a shared sidebar workspace shell.
+- Inspect build/deploy logs for each submission run.
+- Install and use the Hiring Engine GitHub App for cross-account push rebuild automation.
 - Use separate routes:
   - dashboard: `/candidate/dashboard`
   - submit form: `/candidate/submissions/new`
@@ -17,12 +19,22 @@ Creates or updates a candidate submission for a specific assignment join code.
 
 Request body:
 - `joinCode` (string, required)
-- `repositoryUrl` (string, required, must be a GitHub repo URL)
+- Either:
+  - `repositoryUrl` (string, optional fallback)
+  - or `repositoryFullName` + `githubInstallationId` (recommended app flow)
 
 Rules:
 - Auth required.
 - Candidate role required.
 - If candidate already submitted for that assignment, the submission is updated and status resets to `pending`.
+- A build run is queued immediately after submission creation/update.
+- If GitHub App is configured on server, repository must have app installation.
+
+### `GET /api/candidate/github/repositories?installationId=<id>`
+Returns repositories visible to the provided GitHub App installation.
+
+### `GET /api/integrations/github/app`
+Returns GitHub App public integration config used by the candidate submission page.
 
 ### `GET /api/candidate/overview`
 Returns candidate dashboard data.
@@ -33,6 +45,12 @@ Query params:
 Response:
 - `metrics`: submission totals grouped by status.
 - `recentSubmissions`: assignment title, join code, repository URL, status, timestamps.
+
+### `GET /api/candidate/submissions/:submissionId/logs`
+Returns pipeline runs and stage logs for a candidate-owned submission.
+
+Query params:
+- `runId` (optional, UUID) to inspect a specific run.
 
 ## Backend Files
 - `/Users/Dilain/.codex/worktrees/5eff/MarkI/apps/api/src/routes/candidate.routes.ts`

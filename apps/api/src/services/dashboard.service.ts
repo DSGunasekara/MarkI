@@ -67,6 +67,9 @@ export const dashboardService = {
         assignmentTitle: assignments.title,
         candidateId: submissions.candidateId,
         repositoryUrl: submissions.repositoryUrl,
+        deployedUrl: submissions.deployedUrl,
+        latestCommitSha: submissions.latestCommitSha,
+        lastBuildAt: submissions.lastBuildAt,
         status: submissions.status,
         createdAt: submissions.createdAt,
         updatedAt: submissions.updatedAt
@@ -160,6 +163,9 @@ export const dashboardService = {
         candidateName: candidateUser.name,
         candidateEmail: candidateUser.email,
         repositoryUrl: submissions.repositoryUrl,
+        deployedUrl: submissions.deployedUrl,
+        latestCommitSha: submissions.latestCommitSha,
+        lastBuildAt: submissions.lastBuildAt,
         status: submissions.status,
         createdAt: submissions.createdAt,
         updatedAt: submissions.updatedAt

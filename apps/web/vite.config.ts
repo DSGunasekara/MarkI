@@ -11,4 +11,17 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    allowedHosts: [
+      "31f1-112-134-170-233.ngrok-free.app"
+    ],
+		proxy: {
+			"/api": {
+				target: "http://localhost:3000",
+				changeOrigin: true,
+				secure: false,
+				// rewrite: (path) => path.replace(/^\/api/, ''),
+			},
+		},
+	},
 })

@@ -93,6 +93,12 @@ export function EmployerSubmissionsExplorer({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [activeLogsSubmissionId, setActiveLogsSubmissionId] = useState<string | null>(null)
+  const [pipelineErrorMessage, setPipelineErrorMessage] = useState<string | null>(null)
+  const [isLoadingPipeline, setIsLoadingPipeline] = useState(false)
+  const [pipelineView, setPipelineView] = useState<Awaited<
+    ReturnType<typeof dashboardApi.getSubmissionLogs>
+  > | null>(null)
 
   const fetchExplorerData = useCallback(async (mode: LoadMode) => {
     if (mode === "initial") {
@@ -205,6 +211,27 @@ export function EmployerSubmissionsExplorer({
     setDraftFilters(DEFAULT_FILTERS)
     setActiveFilters(DEFAULT_FILTERS)
   }
+
+  const loadSubmissionLogs = useCallback(
+    async (submissionId: string, runId?: string) => {
+      setIsLoadingPipeline(true)
+      setPipelineErrorMessage(null)
+      setActiveLogsSubmissionId(submissionId)
+
+      try {
+        const response = await dashboardApi.getSubmissionLogs({
+          submissionId,
+          runId
+        })
+        setPipelineView(response)
+      } catch (error: unknown) {
+        setPipelineErrorMessage(toErrorMessage(error))
+      } finally {
+        setIsLoadingPipeline(false)
+      }
+    },
+    []
+  )
 
   return (
     <WorkspaceShell
@@ -398,9 +425,12 @@ export function EmployerSubmissionsExplorer({
                         <tr className="border-b border-border text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                           <th className="px-3 py-2 font-medium">Candidate</th>
                           <th className="px-3 py-2 font-medium">Repository</th>
+                          <th className="px-3 py-2 font-medium">Deployment</th>
+                          <th className="px-3 py-2 font-medium">Commit</th>
                           <th className="px-3 py-2 font-medium">Status</th>
                           <th className="px-3 py-2 font-medium">Created</th>
                           <th className="px-3 py-2 font-medium">Updated</th>
+                          <th className="px-3 py-2 font-medium">Logs</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -421,10 +451,38 @@ export function EmployerSubmissionsExplorer({
                               </a>
                             </td>
                             <td className="px-3 py-3">
+                              {submission.deployedUrl ? (
+                                <a
+                                  href={toRepositoryHref(submission.deployedUrl)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="line-clamp-1 text-foreground underline decoration-border underline-offset-2 hover:text-primary"
+                                >
+                                  Open
+                                </a>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-3 font-mono text-xs text-muted-foreground">
+                              {submission.latestCommitSha ? submission.latestCommitSha.slice(0, 8) : "-"}
+                            </td>
+                            <td className="px-3 py-3">
                               <Badge variant={statusBadgeVariantMap[submission.status]}>{submission.status}</Badge>
                             </td>
                             <td className="px-3 py-3 text-muted-foreground">{formatDateTime(submission.createdAt)}</td>
                             <td className="px-3 py-3 text-muted-foreground">{formatDateTime(submission.updatedAt)}</td>
+                            <td className="px-3 py-3">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  void loadSubmissionLogs(submission.id)
+                                }}
+                              >
+                                View logs
+                              </Button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -471,6 +529,55 @@ export function EmployerSubmissionsExplorer({
             </div>
           </CardContent>
         </Card>
+
+        {activeLogsSubmissionId ? (
+          <Card className="app-panel">
+            <CardHeader>
+              <CardTitle>Pipeline Logs</CardTitle>
+              <CardDescription>
+                Review build and deployment output for the selected submission.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {pipelineErrorMessage ? (
+                <p className="text-sm text-destructive">{pipelineErrorMessage}</p>
+              ) : null}
+
+              {isLoadingPipeline ? (
+                <p className="text-sm text-muted-foreground">Loading pipeline logs...</p>
+              ) : pipelineView ? (
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {pipelineView.runs.map((run) => (
+                      <Button
+                        key={run.id}
+                        size="sm"
+                        variant={pipelineView.selectedRun?.id === run.id ? "secondary" : "outline"}
+                        onClick={() => {
+                          void loadSubmissionLogs(activeLogsSubmissionId, run.id)
+                        }}
+                      >
+                        {run.trigger}:{run.status}
+                      </Button>
+                    ))}
+                  </div>
+
+                  <div className="rounded-md border border-border bg-background/60 p-3">
+                    <pre className="max-h-96 overflow-auto whitespace-pre-wrap text-xs text-foreground">
+                      {pipelineView.logs.length > 0
+                        ? pipelineView.logs
+                            .map((log) => `[${new Date(log.createdAt).toLocaleTimeString()}] ${log.stage.toUpperCase()} ${log.level.toUpperCase()} ${log.message}`)
+                            .join("\n")
+                        : "No logs available for this run yet."}
+                    </pre>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">No pipeline data available.</p>
+              )}
+            </CardContent>
+          </Card>
+        ) : null}
       </section>
     </WorkspaceShell>
   )

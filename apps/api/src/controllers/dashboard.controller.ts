@@ -1,6 +1,7 @@
 import type { Context } from 'hono'
 
 import { dashboardService } from '../services/dashboard.service.js'
+import { pipelineService } from '../services/pipeline.service.js'
 import type { AppBindings } from '../types/hono.js'
 
 type DashboardContext = Context<AppBindings>
@@ -17,6 +18,14 @@ type DashboardSubmissionsQuery = {
   sort?: 'newest' | 'oldest'
   limit?: number
   offset?: number
+}
+
+type DashboardSubmissionLogsParams = {
+  submissionId: string
+}
+
+type DashboardSubmissionLogsQuery = {
+  runId?: string
 }
 
 export const dashboardController = {
@@ -65,6 +74,42 @@ export const dashboardController = {
 
     return c.json({
       data: submissionsData
+    })
+  },
+
+  submissionLogs: async (
+    c: DashboardContext,
+    params: DashboardSubmissionLogsParams,
+    query: DashboardSubmissionLogsQuery
+  ) => {
+    const user = c.get('user')
+
+    if (!user) {
+      return c.json(
+        {
+          message: 'Authentication required.'
+        },
+        401
+      )
+    }
+
+    const pipelineView = await pipelineService.getEmployerSubmissionPipeline(
+      user.id,
+      params.submissionId,
+      query.runId
+    )
+
+    if (!pipelineView) {
+      return c.json(
+        {
+          message: 'Submission not found.'
+        },
+        404
+      )
+    }
+
+    return c.json({
+      data: pipelineView
     })
   }
 }

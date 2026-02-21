@@ -6,6 +6,7 @@ The frontend now provides a production-style employer workspace with:
 - Left sidebar workspace shell and dense layout
 - Recent assignments table
 - Recent submissions table
+- Pipeline log viewer for submission build/deploy runs
 - Dedicated action routes:
   - Employer: `/employer/assignments/new`
   - Employer explorer: `/employer/submissions`
@@ -59,6 +60,9 @@ All requests include cookies (`credentials: include`).
 - Dashboard pages are read-focused; primary actions are moved to dedicated routes.
 - Submissions explorer provides grouped-by-assignment view with filters (assignment, status, search, sort, pagination).
 - Dedicated submissions table for pipeline monitoring.
+- Candidate and employer views include per-submission run logs with stage output.
+- Candidate submission page includes GitHub App install entrypoint for push-triggered automation.
+- Candidate submission uses installation-based repository picker instead of manual URL when app is configured.
 - Empty states and loading states for all data regions.
 - Refresh action to resync without page reload.
 

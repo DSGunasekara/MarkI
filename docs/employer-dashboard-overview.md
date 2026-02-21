@@ -6,6 +6,7 @@ Provide a single endpoint for employer dashboard data so the UI can render metri
 ## Endpoint
 - `GET /api/dashboard/overview`
 - `GET /api/dashboard/submissions`
+- `GET /api/dashboard/submissions/:submissionId/logs`
 
 ### Query Params
 - `assignmentsLimit` (optional, integer, `1..25`)
@@ -41,7 +42,13 @@ Provide a single endpoint for employer dashboard data so the UI can render metri
 - `assignmentOptions[]`
 - `totalSubmissions`
 - `submissions[]`
-  - includes assignment title/join code + candidate name/email + status/timestamps
+  - includes assignment title/join code + candidate name/email + status/timestamps + deployment metadata
+
+`/submissions/:submissionId/logs` response:
+- `submission`
+- `selectedRun`
+- `runs[]`
+- `logs[]`
 
 ## Data Flow
 1. Route validates query params with `@hono/zod-validator`.
