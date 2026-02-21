@@ -193,6 +193,7 @@ function App() {
             user={session.user}
             onSignOut={handleSignOut}
             onBackToDashboard={() => navigate(EMPLOYER_DASHBOARD_PATH)}
+            onOpenSubmissionsExplorer={() => navigate(EMPLOYER_SUBMISSIONS_PATH)}
           />
         ) : resolvedPath === EMPLOYER_SUBMISSIONS_PATH ? (
           <EmployerSubmissionsExplorer

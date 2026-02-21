@@ -22,9 +22,10 @@ Provide an employer-focused page to inspect all submissions grouped by assignmen
 1. Dashboard links to explorer via “All submissions”.
 2. Clicking an assignment row in employer dashboard opens explorer with `assignmentId` query pre-applied.
 3. Explorer loads assignment options and filtered submission records from one API call.
-4. Results are grouped by assignment cards.
-5. Filters can be applied/cleared without leaving the page.
-6. Pagination buttons move through filtered results.
+4. Sidebar navigation keeps employer routes one click away while exploring data.
+5. Results are grouped by assignment cards.
+6. Filters can be applied/cleared without leaving the page.
+7. Pagination buttons move through filtered results.
 
 ## Files
 - `/Users/Dilain/.codex/worktrees/5eff/MarkI/apps/web/src/components/dashboard/employer-submissions-explorer.tsx`

@@ -5,6 +5,7 @@ Candidate users can now:
 - Join an assignment using a join code.
 - Submit or resubmit a public GitHub repository URL.
 - View submission metrics and recent submission history.
+- Navigate between candidate routes from a shared sidebar workspace shell.
 - Use separate routes:
   - dashboard: `/candidate/dashboard`
   - submit form: `/candidate/submissions/new`
@@ -41,6 +42,8 @@ Response:
 
 ## Frontend Files
 - `/Users/Dilain/.codex/worktrees/5eff/MarkI/apps/web/src/components/dashboard/candidate-pending.tsx`
+- `/Users/Dilain/.codex/worktrees/5eff/MarkI/apps/web/src/components/dashboard/candidate-submit-repository.tsx`
+- `/Users/Dilain/.codex/worktrees/5eff/MarkI/apps/web/src/components/shared/workspace-shell.tsx`
 - `/Users/Dilain/.codex/worktrees/5eff/MarkI/apps/web/src/lib/api.ts`
 
 ## UX Flow

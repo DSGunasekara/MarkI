@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { RefreshCwIcon } from "lucide-react"
 
+import { WorkspaceShell } from "@/components/shared/workspace-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -103,40 +104,43 @@ export function CandidatePending({
   }, [overview])
 
   return (
-    <div className="min-h-screen">
-      <header className="app-header w-full">
-        <div className="flex min-h-14 w-full flex-wrap items-center justify-between gap-3 px-4 py-2 md:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="size-2 rounded-full bg-primary" />
-            <div>
-              <p className="app-overline">Hiring Engine</p>
-              <p className="text-sm font-medium">Candidate Dashboard</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline">{user.email}</Badge>
-            <Button size="sm" onClick={onOpenSubmitRepository}>
-              Submit repository
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                void loadOverview("refresh")
-              }}
-              disabled={isRefreshingOverview}
-            >
-              <RefreshCwIcon className={isRefreshingOverview ? "animate-spin" : ""} />
-              Refresh
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => void onSignOut()}>
-              Sign out
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-7xl space-y-4 px-4 py-4 md:px-6 lg:px-8">
+    <WorkspaceShell
+      workspaceLabel="Candidate Workspace"
+      title="Dashboard"
+      description="Track your submission pipeline and assignment progress."
+      userEmail={user.email}
+      navItems={[
+        {
+          key: "dashboard",
+          label: "Dashboard",
+          isActive: true,
+          onClick: () => {
+            // no-op: already on dashboard
+          }
+        },
+        {
+          key: "submit-repository",
+          label: "Submit Repository",
+          isActive: false,
+          onClick: onOpenSubmitRepository
+        }
+      ]}
+      onSignOut={onSignOut}
+      headerActions={
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            void loadOverview("refresh")
+          }}
+          disabled={isRefreshingOverview}
+        >
+          <RefreshCwIcon className={isRefreshingOverview ? "animate-spin" : ""} />
+          Refresh
+        </Button>
+      }
+    >
+      <section className="space-y-4">
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <Card className="app-panel">
             <CardContent className="space-y-1 py-4">
@@ -229,7 +233,7 @@ export function CandidatePending({
             )}
           </CardContent>
         </Card>
-      </main>
-    </div>
+      </section>
+    </WorkspaceShell>
   )
 }

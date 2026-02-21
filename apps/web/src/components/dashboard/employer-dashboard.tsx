@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card"
+import { WorkspaceShell } from "@/components/shared/workspace-shell"
 import {
   dashboardApi,
   toErrorMessage,
@@ -115,209 +116,213 @@ export function EmployerDashboard({
   }, [overview])
 
   return (
-    <div className="min-h-screen">
-      <header className="app-header w-full">
-        <div className="flex min-h-14 w-full flex-wrap items-center justify-between gap-3 px-4 py-2 md:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="size-2 rounded-full bg-primary" />
-            <div>
-              <p className="app-overline">Hiring Engine</p>
-              <p className="text-sm font-medium">Employer Dashboard</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline">{user.email}</Badge>
-              <Button size="sm" onClick={onOpenCreateAssignment}>
-                New assignment
-              </Button>
-            <Button size="sm" variant="outline" onClick={() => onOpenSubmissionsExplorer()}>
-              All submissions
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                void loadOverview("refresh")
-              }}
-              disabled={isRefreshingOverview}
-            >
-              <RefreshCwIcon className={isRefreshingOverview ? "animate-spin" : ""} />
-              Refresh
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => void onSignOut()}>
-              Sign out
-            </Button>
-          </div>
-        </div>
-      </header>
+    <WorkspaceShell
+      workspaceLabel="Employer Workspace"
+      title="Dashboard"
+      description="Monitor assignment activity and recent submission pipeline updates."
+      userEmail={user.email}
+      navItems={[
+        {
+          key: "dashboard",
+          label: "Dashboard",
+          isActive: true,
+          onClick: () => {
+            // no-op: already on dashboard
+          }
+        },
+        {
+          key: "create-assignment",
+          label: "Create Assignment",
+          isActive: false,
+          onClick: onOpenCreateAssignment
+        },
+        {
+          key: "submissions",
+          label: "Submissions",
+          isActive: false,
+          onClick: () => onOpenSubmissionsExplorer()
+        }
+      ]}
+      onSignOut={onSignOut}
+      headerActions={
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            void loadOverview("refresh")
+          }}
+          disabled={isRefreshingOverview}
+        >
+          <RefreshCwIcon className={isRefreshingOverview ? "animate-spin" : ""} />
+          Refresh
+        </Button>
+      }
+    >
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <Card className="app-panel">
+          <CardContent className="space-y-1 py-4">
+            <p className="app-overline">Assignments</p>
+            <p className="text-2xl font-semibold">{metrics.assignmentCount}</p>
+          </CardContent>
+        </Card>
+        <Card className="app-panel">
+          <CardContent className="space-y-1 py-4">
+            <p className="app-overline">Submissions</p>
+            <p className="text-2xl font-semibold">{metrics.submissionCount}</p>
+          </CardContent>
+        </Card>
+        <Card className="app-panel">
+          <CardContent className="space-y-1 py-4">
+            <p className="app-overline">Pending</p>
+            <p className="text-2xl font-semibold">{metrics.pendingCount}</p>
+          </CardContent>
+        </Card>
+        <Card className="app-panel">
+          <CardContent className="space-y-1 py-4">
+            <p className="app-overline">Building</p>
+            <p className="text-2xl font-semibold">{metrics.buildingCount}</p>
+          </CardContent>
+        </Card>
+        <Card className="app-panel">
+          <CardContent className="space-y-1 py-4">
+            <p className="app-overline">Deployed</p>
+            <p className="text-2xl font-semibold">{metrics.deployedCount}</p>
+          </CardContent>
+        </Card>
+        <Card className="app-panel">
+          <CardContent className="space-y-1 py-4">
+            <p className="app-overline">Failed</p>
+            <p className="text-2xl font-semibold">{metrics.failedCount}</p>
+          </CardContent>
+        </Card>
+      </section>
 
-      <main className="mx-auto w-full max-w-7xl space-y-4 px-4 py-4 md:px-6 lg:px-8">
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-          <Card className="app-panel">
-            <CardContent className="space-y-1 py-4">
-              <p className="app-overline">Assignments</p>
-              <p className="text-2xl font-semibold">{metrics.assignmentCount}</p>
-            </CardContent>
-          </Card>
-          <Card className="app-panel">
-            <CardContent className="space-y-1 py-4">
-              <p className="app-overline">Submissions</p>
-              <p className="text-2xl font-semibold">{metrics.submissionCount}</p>
-            </CardContent>
-          </Card>
-          <Card className="app-panel">
-            <CardContent className="space-y-1 py-4">
-              <p className="app-overline">Pending</p>
-              <p className="text-2xl font-semibold">{metrics.pendingCount}</p>
-            </CardContent>
-          </Card>
-          <Card className="app-panel">
-            <CardContent className="space-y-1 py-4">
-              <p className="app-overline">Building</p>
-              <p className="text-2xl font-semibold">{metrics.buildingCount}</p>
-            </CardContent>
-          </Card>
-          <Card className="app-panel">
-            <CardContent className="space-y-1 py-4">
-              <p className="app-overline">Deployed</p>
-              <p className="text-2xl font-semibold">{metrics.deployedCount}</p>
-            </CardContent>
-          </Card>
-          <Card className="app-panel">
-            <CardContent className="space-y-1 py-4">
-              <p className="app-overline">Failed</p>
-              <p className="text-2xl font-semibold">{metrics.failedCount}</p>
-            </CardContent>
-          </Card>
-        </section>
+      {overviewErrorMessage ? (
+        <Card className="border-destructive/50 bg-destructive/10">
+          <CardContent className="py-3 text-sm text-destructive">{overviewErrorMessage}</CardContent>
+        </Card>
+      ) : null}
 
-        {overviewErrorMessage ? (
-          <Card className="border-destructive/50 bg-destructive/10">
-            <CardContent className="py-3 text-sm text-destructive">{overviewErrorMessage}</CardContent>
-          </Card>
-        ) : null}
-
-        <section className="space-y-4">
-          <Card className="app-panel">
-            <CardHeader>
-              <CardTitle>Recent Assignments</CardTitle>
-              <CardDescription>
-                Track assignment usage and candidate activity without leaving the dashboard.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingOverview && !overview ? (
-                <p className="text-sm text-muted-foreground">Loading assignments...</p>
-              ) : overview && overview.recentAssignments.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[620px] border-collapse text-sm">
-                    <thead>
-                      <tr className="border-b border-border text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                        <th className="px-3 py-2 font-medium">Assignment</th>
-                        <th className="px-3 py-2 font-medium">Join code</th>
-                        <th className="px-3 py-2 font-medium">Submissions</th>
-                        <th className="px-3 py-2 font-medium">Latest submission</th>
+      <section className="space-y-4">
+        <Card className="app-panel">
+          <CardHeader>
+            <CardTitle>Recent Assignments</CardTitle>
+            <CardDescription>
+              Track assignment usage and candidate activity without leaving the dashboard.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoadingOverview && !overview ? (
+              <p className="text-sm text-muted-foreground">Loading assignments...</p>
+            ) : overview && overview.recentAssignments.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[620px] border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                      <th className="px-3 py-2 font-medium">Assignment</th>
+                      <th className="px-3 py-2 font-medium">Join code</th>
+                      <th className="px-3 py-2 font-medium">Submissions</th>
+                      <th className="px-3 py-2 font-medium">Latest submission</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {overview.recentAssignments.map((assignment) => (
+                      <tr key={assignment.id} className="border-b border-border/60 align-top">
+                        <td className="px-3 py-3">
+                          <button
+                            type="button"
+                            className="cursor-pointer text-left font-medium text-foreground underline decoration-transparent underline-offset-2 transition hover:text-primary hover:decoration-primary"
+                            onClick={() => onOpenSubmissionsExplorer(assignment.id)}
+                          >
+                            {assignment.title}
+                          </button>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            created {formatDateTime(assignment.createdAt)}
+                          </p>
+                        </td>
+                        <td className="px-3 py-3">
+                          <Badge variant="outline" className="font-mono tracking-wider">
+                            {assignment.joinCode}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-3 text-muted-foreground">{assignment.submissionCount}</td>
+                        <td className="px-3 py-3 text-muted-foreground">{formatDateTime(assignment.latestSubmissionAt)}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {overview.recentAssignments.map((assignment) => (
-                        <tr key={assignment.id} className="border-b border-border/60 align-top">
-                          <td className="px-3 py-3">
-                            <button
-                              type="button"
-                              className="cursor-pointer text-left font-medium text-foreground underline decoration-transparent underline-offset-2 transition hover:text-primary hover:decoration-primary"
-                              onClick={() => onOpenSubmissionsExplorer(assignment.id)}
-                            >
-                              {assignment.title}
-                            </button>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              created {formatDateTime(assignment.createdAt)}
-                            </p>
-                          </td>
-                          <td className="px-3 py-3">
-                            <Badge variant="outline" className="font-mono tracking-wider">
-                              {assignment.joinCode}
-                            </Badge>
-                          </td>
-                          <td className="px-3 py-3 text-muted-foreground">{assignment.submissionCount}</td>
-                          <td className="px-3 py-3 text-muted-foreground">{formatDateTime(assignment.latestSubmissionAt)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No assignments yet. Create one to start your pipeline.</p>
-              )}
-            </CardContent>
-            <CardFooter>
-              <div className="flex items-center gap-2">
-                <Button size="sm" onClick={onOpenCreateAssignment}>
-                  Create assignment
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => onOpenSubmissionsExplorer()}>
-                  View all submissions
-                </Button>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </CardFooter>
-          </Card>
+            ) : (
+              <p className="text-sm text-muted-foreground">No assignments yet. Create one to start your pipeline.</p>
+            )}
+          </CardContent>
+          <CardFooter>
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={onOpenCreateAssignment}>
+                Create assignment
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => onOpenSubmissionsExplorer()}>
+                View all submissions
+              </Button>
+            </div>
+          </CardFooter>
+        </Card>
 
-          <Card className="app-panel">
-            <CardHeader>
-              <CardTitle>Recent Submissions</CardTitle>
-              <CardDescription>
-                Review candidate repositories and live pipeline status across assignments.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingOverview && !overview ? (
-                <p className="text-sm text-muted-foreground">Loading submissions...</p>
-              ) : overview && overview.recentSubmissions.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[680px] border-collapse text-sm">
-                    <thead>
-                      <tr className="border-b border-border text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                        <th className="px-3 py-2 font-medium">Assignment</th>
-                        <th className="px-3 py-2 font-medium">Repository</th>
-                        <th className="px-3 py-2 font-medium">Status</th>
-                        <th className="px-3 py-2 font-medium">Updated</th>
+        <Card className="app-panel">
+          <CardHeader>
+            <CardTitle>Recent Submissions</CardTitle>
+            <CardDescription>
+              Review candidate repositories and live pipeline status across assignments.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoadingOverview && !overview ? (
+              <p className="text-sm text-muted-foreground">Loading submissions...</p>
+            ) : overview && overview.recentSubmissions.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[680px] border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                      <th className="px-3 py-2 font-medium">Assignment</th>
+                      <th className="px-3 py-2 font-medium">Repository</th>
+                      <th className="px-3 py-2 font-medium">Status</th>
+                      <th className="px-3 py-2 font-medium">Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {overview.recentSubmissions.map((submission) => (
+                      <tr key={submission.id} className="border-b border-border/60 align-top">
+                        <td className="px-3 py-3">
+                          <p className="font-medium">{submission.assignmentTitle}</p>
+                          <p className="mt-1 font-mono text-[10px] text-muted-foreground">
+                            candidate {submission.candidateId.slice(0, 8)}
+                          </p>
+                        </td>
+                        <td className="px-3 py-3">
+                          <a
+                            href={toRepositoryHref(submission.repositoryUrl)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="line-clamp-1 text-foreground underline decoration-border underline-offset-2 hover:text-primary"
+                          >
+                            {submission.repositoryUrl}
+                          </a>
+                        </td>
+                        <td className="px-3 py-3">
+                          <Badge variant={statusBadgeVariantMap[submission.status]}>{submission.status}</Badge>
+                        </td>
+                        <td className="px-3 py-3 text-muted-foreground">{formatDateTime(submission.updatedAt)}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {overview.recentSubmissions.map((submission) => (
-                        <tr key={submission.id} className="border-b border-border/60 align-top">
-                          <td className="px-3 py-3">
-                            <p className="font-medium">{submission.assignmentTitle}</p>
-                            <p className="mt-1 font-mono text-[10px] text-muted-foreground">
-                              candidate {submission.candidateId.slice(0, 8)}
-                            </p>
-                          </td>
-                          <td className="px-3 py-3">
-                            <a
-                              href={toRepositoryHref(submission.repositoryUrl)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="line-clamp-1 text-foreground underline decoration-border underline-offset-2 hover:text-primary"
-                            >
-                              {submission.repositoryUrl}
-                            </a>
-                          </td>
-                          <td className="px-3 py-3">
-                            <Badge variant={statusBadgeVariantMap[submission.status]}>{submission.status}</Badge>
-                          </td>
-                          <td className="px-3 py-3 text-muted-foreground">{formatDateTime(submission.updatedAt)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No submissions yet. Candidate activity will appear here.</p>
-              )}
-            </CardContent>
-          </Card>
-        </section>
-      </main>
-    </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No submissions yet. Candidate activity will appear here.</p>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+    </WorkspaceShell>
   )
 }

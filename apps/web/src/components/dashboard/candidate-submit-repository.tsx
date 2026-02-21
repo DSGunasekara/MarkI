@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react"
 
-import { Badge } from "@/components/ui/badge"
+import { WorkspaceShell } from "@/components/shared/workspace-shell"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -72,29 +72,31 @@ export function CandidateSubmitRepository({
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="app-header w-full">
-        <div className="flex min-h-14 w-full flex-wrap items-center justify-between gap-3 px-4 py-2 md:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="size-2 rounded-full bg-primary" />
-            <div>
-              <p className="app-overline">Hiring Engine</p>
-              <p className="text-sm font-medium">Submit Repository</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline">{user.email}</Badge>
-            <Button size="sm" variant="outline" onClick={onBackToDashboard}>
-              Back to dashboard
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => void onSignOut()}>
-              Sign out
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-4xl space-y-4 px-4 py-6 md:px-6 lg:px-8">
+    <WorkspaceShell
+      workspaceLabel="Candidate Workspace"
+      title="Submit Repository"
+      description="Submit or resubmit your assignment repository using the join code."
+      userEmail={user.email}
+      navItems={[
+        {
+          key: "dashboard",
+          label: "Dashboard",
+          isActive: false,
+          onClick: onBackToDashboard
+        },
+        {
+          key: "submit-repository",
+          label: "Submit Repository",
+          isActive: true,
+          onClick: () => {
+            // no-op: already on submit repository
+          }
+        }
+      ]}
+      onSignOut={onSignOut}
+      maxWidthClassName="max-w-4xl"
+    >
+      <section className="space-y-4">
         <Card className="app-panel">
           <CardHeader>
             <CardTitle>Assignment Submission</CardTitle>
@@ -151,7 +153,7 @@ export function CandidateSubmitRepository({
             </p>
           </CardFooter>
         </Card>
-      </main>
-    </div>
+      </section>
+    </WorkspaceShell>
   )
 }

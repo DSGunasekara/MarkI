@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { RefreshCwIcon } from "lucide-react"
 
+import { WorkspaceShell } from "@/components/shared/workspace-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -206,32 +207,36 @@ export function EmployerSubmissionsExplorer({
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="app-header w-full">
-        <div className="flex min-h-14 w-full flex-wrap items-center justify-between gap-3 px-4 py-2 md:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="size-2 rounded-full bg-primary" />
-            <div>
-              <p className="app-overline">Hiring Engine</p>
-              <p className="text-sm font-medium">Submissions Explorer</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline">{user.email}</Badge>
-            <Button size="sm" onClick={onOpenCreateAssignment}>
-              New assignment
-            </Button>
-            <Button size="sm" variant="outline" onClick={onBackToDashboard}>
-              Back to dashboard
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => void onSignOut()}>
-              Sign out
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-7xl space-y-4 px-4 py-4 md:px-6 lg:px-8">
+    <WorkspaceShell
+      workspaceLabel="Employer Workspace"
+      title="Submissions Explorer"
+      description="Filter and inspect submissions grouped by assignment."
+      userEmail={user.email}
+      navItems={[
+        {
+          key: "dashboard",
+          label: "Dashboard",
+          isActive: false,
+          onClick: onBackToDashboard
+        },
+        {
+          key: "create-assignment",
+          label: "Create Assignment",
+          isActive: false,
+          onClick: onOpenCreateAssignment
+        },
+        {
+          key: "submissions",
+          label: "Submissions",
+          isActive: true,
+          onClick: () => {
+            // no-op: already on submissions explorer
+          }
+        }
+      ]}
+      onSignOut={onSignOut}
+    >
+      <section className="space-y-4">
         <Card className="app-panel">
           <CardHeader>
             <CardTitle>Filters</CardTitle>
@@ -466,7 +471,7 @@ export function EmployerSubmissionsExplorer({
             </div>
           </CardContent>
         </Card>
-      </main>
-    </div>
+      </section>
+    </WorkspaceShell>
   )
 }

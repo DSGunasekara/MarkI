@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react"
 
-import { Badge } from "@/components/ui/badge"
+import { WorkspaceShell } from "@/components/shared/workspace-shell"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -19,12 +19,14 @@ type EmployerCreateAssignmentProps = {
   user: SessionUser
   onSignOut: () => Promise<void>
   onBackToDashboard: () => void
+  onOpenSubmissionsExplorer: () => void
 }
 
 export function EmployerCreateAssignment({
   user,
   onSignOut,
-  onBackToDashboard
+  onBackToDashboard,
+  onOpenSubmissionsExplorer
 }: EmployerCreateAssignmentProps) {
   const [title, setTitle] = useState("")
   const [instructions, setInstructions] = useState("")
@@ -69,29 +71,37 @@ export function EmployerCreateAssignment({
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="app-header w-full">
-        <div className="flex min-h-14 w-full flex-wrap items-center justify-between gap-3 px-4 py-2 md:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="size-2 rounded-full bg-primary" />
-            <div>
-              <p className="app-overline">Hiring Engine</p>
-              <p className="text-sm font-medium">Create Assignment</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline">{user.email}</Badge>
-            <Button size="sm" variant="outline" onClick={onBackToDashboard}>
-              Back to dashboard
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => void onSignOut()}>
-              Sign out
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-4xl space-y-4 px-4 py-6 md:px-6 lg:px-8">
+    <WorkspaceShell
+      workspaceLabel="Employer Workspace"
+      title="Create Assignment"
+      description="Define scope and requirements so candidate evaluations stay consistent."
+      userEmail={user.email}
+      navItems={[
+        {
+          key: "dashboard",
+          label: "Dashboard",
+          isActive: false,
+          onClick: onBackToDashboard
+        },
+        {
+          key: "create-assignment",
+          label: "Create Assignment",
+          isActive: true,
+          onClick: () => {
+            // no-op: already on create assignment
+          }
+        },
+        {
+          key: "submissions",
+          label: "Submissions",
+          isActive: false,
+          onClick: onOpenSubmissionsExplorer
+        }
+      ]}
+      onSignOut={onSignOut}
+      maxWidthClassName="max-w-4xl"
+    >
+      <section className="space-y-4">
         <Card className="app-panel">
           <CardHeader>
             <CardTitle>New Assignment</CardTitle>
@@ -149,7 +159,7 @@ export function EmployerCreateAssignment({
             </p>
           </CardFooter>
         </Card>
-      </main>
-    </div>
+      </section>
+    </WorkspaceShell>
   )
 }
