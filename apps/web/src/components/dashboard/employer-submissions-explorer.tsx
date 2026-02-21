@@ -35,6 +35,7 @@ type EmployerSubmissionsExplorerProps = {
   onSignOut: () => Promise<void>
   onBackToDashboard: () => void
   onOpenCreateAssignment: () => void
+  initialAssignmentId?: string | null
 }
 
 type ExplorerFilterDraft = {
@@ -80,7 +81,8 @@ export function EmployerSubmissionsExplorer({
   user,
   onSignOut,
   onBackToDashboard,
-  onOpenCreateAssignment
+  onOpenCreateAssignment,
+  initialAssignmentId
 }: EmployerSubmissionsExplorerProps) {
   const [draftFilters, setDraftFilters] = useState<ExplorerFilterDraft>(DEFAULT_FILTERS)
   const [activeFilters, setActiveFilters] = useState<ExplorerFilterDraft>(DEFAULT_FILTERS)
@@ -131,6 +133,24 @@ export function EmployerSubmissionsExplorer({
       window.clearTimeout(timerId)
     }
   }, [fetchExplorerData])
+
+  useEffect(() => {
+    const nextAssignmentId = initialAssignmentId ?? "all"
+
+    if (activeFilters.assignmentId === nextAssignmentId) {
+      return
+    }
+
+    setOffset(0)
+    setDraftFilters((current) => ({
+      ...current,
+      assignmentId: nextAssignmentId
+    }))
+    setActiveFilters((current) => ({
+      ...current,
+      assignmentId: nextAssignmentId
+    }))
+  }, [activeFilters.assignmentId, initialAssignmentId])
 
   const groupedSubmissions = useMemo(() => {
     if (!explorerData) {

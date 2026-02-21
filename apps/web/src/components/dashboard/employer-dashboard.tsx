@@ -23,7 +23,7 @@ type EmployerDashboardProps = {
   user: SessionUser
   onSignOut: () => Promise<void>
   onOpenCreateAssignment: () => void
-  onOpenSubmissionsExplorer: () => void
+  onOpenSubmissionsExplorer: (assignmentId?: string) => void
 }
 
 type OverviewLoadMode = "initial" | "refresh"
@@ -127,10 +127,10 @@ export function EmployerDashboard({
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline">{user.email}</Badge>
-            <Button size="sm" onClick={onOpenCreateAssignment}>
-              New assignment
-            </Button>
-            <Button size="sm" variant="outline" onClick={onOpenSubmissionsExplorer}>
+              <Button size="sm" onClick={onOpenCreateAssignment}>
+                New assignment
+              </Button>
+            <Button size="sm" variant="outline" onClick={() => onOpenSubmissionsExplorer()}>
               All submissions
             </Button>
             <Button
@@ -223,7 +223,13 @@ export function EmployerDashboard({
                       {overview.recentAssignments.map((assignment) => (
                         <tr key={assignment.id} className="border-b border-border/60 align-top">
                           <td className="px-3 py-3">
-                            <p className="font-medium">{assignment.title}</p>
+                            <button
+                              type="button"
+                              className="cursor-pointer text-left font-medium text-foreground underline decoration-transparent underline-offset-2 transition hover:text-primary hover:decoration-primary"
+                              onClick={() => onOpenSubmissionsExplorer(assignment.id)}
+                            >
+                              {assignment.title}
+                            </button>
                             <p className="mt-1 text-xs text-muted-foreground">
                               created {formatDateTime(assignment.createdAt)}
                             </p>
@@ -249,7 +255,7 @@ export function EmployerDashboard({
                 <Button size="sm" onClick={onOpenCreateAssignment}>
                   Create assignment
                 </Button>
-                <Button size="sm" variant="outline" onClick={onOpenSubmissionsExplorer}>
+                <Button size="sm" variant="outline" onClick={() => onOpenSubmissionsExplorer()}>
                   View all submissions
                 </Button>
               </div>

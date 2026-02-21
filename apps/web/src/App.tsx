@@ -47,6 +47,7 @@ function App() {
   const [session, setSession] = useState<SessionState | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [pathname, setPathname] = useState<string>(() => window.location.pathname)
+  const [search, setSearch] = useState<string>(() => window.location.search)
 
   useEffect(() => {
     document.documentElement.classList.add("dark")
@@ -55,6 +56,7 @@ function App() {
   useEffect(() => {
     const handlePopState = () => {
       setPathname(window.location.pathname)
+      setSearch(window.location.search)
     }
 
     window.addEventListener("popstate", handlePopState)
@@ -65,20 +67,29 @@ function App() {
   }, [])
 
   const navigate = useCallback((nextPath: string, mode: NavigateMode = "push") => {
-    const currentPath = window.location.pathname
+    const nextUrl = new URL(nextPath, window.location.origin)
+    const nextPathname = nextUrl.pathname
+    const nextSearch = nextUrl.search
 
-    if (currentPath === nextPath) {
-      setPathname(nextPath)
+    const currentPath = window.location.pathname
+    const currentSearch = window.location.search
+
+    if (currentPath === nextPathname && currentSearch === nextSearch) {
+      setPathname(nextPathname)
+      setSearch(nextSearch)
       return
     }
 
+    const nextLocation = `${nextPathname}${nextSearch}`
+
     if (mode === "replace") {
-      window.history.replaceState({}, "", nextPath)
+      window.history.replaceState({}, "", nextLocation)
     } else {
-      window.history.pushState({}, "", nextPath)
+      window.history.pushState({}, "", nextLocation)
     }
 
-    setPathname(nextPath)
+    setPathname(nextPathname)
+    setSearch(nextSearch)
   }, [])
 
   const refreshSession = useCallback(async () => {
@@ -172,6 +183,7 @@ function App() {
   const role = session.user.role
   const resolvedPath =
     isAllowedPathForRole(role, pathname) ? pathname : getDefaultPathForRole(role)
+  const assignmentIdFromSearch = new URLSearchParams(search).get("assignmentId")
 
   return (
     <div className="app-shell dark">
@@ -188,13 +200,25 @@ function App() {
             onSignOut={handleSignOut}
             onBackToDashboard={() => navigate(EMPLOYER_DASHBOARD_PATH)}
             onOpenCreateAssignment={() => navigate(EMPLOYER_CREATE_ASSIGNMENT_PATH)}
+            initialAssignmentId={assignmentIdFromSearch}
           />
         ) : (
           <EmployerDashboard
             user={session.user}
             onSignOut={handleSignOut}
             onOpenCreateAssignment={() => navigate(EMPLOYER_CREATE_ASSIGNMENT_PATH)}
-            onOpenSubmissionsExplorer={() => navigate(EMPLOYER_SUBMISSIONS_PATH)}
+            onOpenSubmissionsExplorer={(assignmentId) => {
+              if (!assignmentId) {
+                navigate(EMPLOYER_SUBMISSIONS_PATH)
+                return
+              }
+
+              const query = new URLSearchParams({
+                assignmentId
+              })
+
+              navigate(`${EMPLOYER_SUBMISSIONS_PATH}?${query.toString()}`)
+            }}
           />
         )
       ) : resolvedPath === CANDIDATE_SUBMIT_REPOSITORY_PATH ? (
