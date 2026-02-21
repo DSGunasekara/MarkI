@@ -63,6 +63,28 @@ export type DashboardOverview = {
   recentSubmissions: DashboardSubmission[]
 }
 
+export type CandidateSubmission = {
+  id: string
+  assignmentId: string
+  assignmentTitle: string
+  joinCode: string
+  repositoryUrl: string
+  status: DashboardSubmissionStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export type CandidateOverview = {
+  metrics: {
+    submissionCount: number
+    pendingCount: number
+    buildingCount: number
+    deployedCount: number
+    failedCount: number
+  }
+  recentSubmissions: CandidateSubmission[]
+}
+
 type SessionEnvelope = {
   data: {
     user: {
@@ -83,6 +105,30 @@ type AssignmentEnvelope = {
 
 type DashboardOverviewEnvelope = {
   data: DashboardOverview
+}
+
+type CandidateOverviewEnvelope = {
+  data: CandidateOverview
+}
+
+type CandidateSubmissionEnvelope = {
+  data: {
+    assignment: {
+      id: string
+      title: string
+      joinCode: string
+    }
+    submission: {
+      id: string
+      assignmentId: string
+      candidateId: string
+      repositoryUrl: string
+      status: DashboardSubmissionStatus
+      createdAt: string
+      updatedAt: string
+    }
+    isResubmission: boolean
+  }
 }
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000"
@@ -232,6 +278,41 @@ export const dashboardApi = {
       queryString.length > 0 ? `/api/dashboard/overview?${queryString}` : "/api/dashboard/overview"
     const payload = await request<DashboardOverviewEnvelope>(path)
     return payload.data
+  }
+}
+
+export const candidateApi = {
+  getOverview: async (input?: { submissionsLimit?: number }): Promise<CandidateOverview> => {
+    const query = new URLSearchParams()
+
+    if (typeof input?.submissionsLimit === "number") {
+      query.set("submissionsLimit", String(input.submissionsLimit))
+    }
+
+    const queryString = query.toString()
+    const path = queryString.length > 0 ? `/api/candidate/overview?${queryString}` : "/api/candidate/overview"
+    const payload = await request<CandidateOverviewEnvelope>(path)
+    return payload.data
+  },
+
+  submitRepository: async (input: {
+    joinCode: string
+    repositoryUrl: string
+  }): Promise<{
+    assignmentTitle: string
+    joinCode: string
+    isResubmission: boolean
+  }> => {
+    const payload = await request<CandidateSubmissionEnvelope>("/api/candidate/submissions", {
+      method: "POST",
+      body: JSON.stringify(input)
+    })
+
+    return {
+      assignmentTitle: payload.data.assignment.title,
+      joinCode: payload.data.assignment.joinCode,
+      isResubmission: payload.data.isResubmission
+    }
   }
 }
 

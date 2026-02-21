@@ -4,6 +4,7 @@ import { cors } from 'hono/cors'
 import { auth } from './lib/auth.js'
 import { authSessionMiddleware } from './middleware/auth.middleware.js'
 import { assignmentRoutes } from './routes/assignment.routes.js'
+import { candidateRoutes } from './routes/candidate.routes.js'
 import { dashboardRoutes } from './routes/dashboard.routes.js'
 import { healthRoutes } from './routes/health.routes.js'
 import { sessionRoutes } from './routes/session.routes.js'
@@ -34,3 +35,4 @@ app.route('/api/health', healthRoutes)
 app.route('/api/session', sessionRoutes)
 app.route('/api/assignments', assignmentRoutes)
 app.route('/api/dashboard', dashboardRoutes)
+app.route('/api/candidate', candidateRoutes)
