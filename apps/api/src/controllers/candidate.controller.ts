@@ -1,6 +1,6 @@
 import type { Context } from 'hono'
 
-import { GitHubApiError, githubAppService } from '../services/github-app.service.js'
+import { GitHubApiError } from '../services/github-app.service.js'
 import { candidateService } from '../services/candidate.service.js'
 import { pipelineService } from '../services/pipeline.service.js'
 import type { AppBindings } from '../types/hono.js'
@@ -19,7 +19,7 @@ type CandidateOverviewQuery = {
 }
 
 type CandidateRepositoriesQuery = {
-  installationId: string
+  installationId?: string
 }
 
 type CandidateSubmissionLogsParams = {
@@ -131,7 +131,8 @@ export const candidateController = {
     }
 
     try {
-      const repositories = await githubAppService.listInstallationRepositories(
+      const repositories = await candidateService.getGitHubRepositories(
+        user.id,
         query.installationId
       )
 

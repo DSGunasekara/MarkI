@@ -16,6 +16,7 @@ Support repository updates from different GitHub accounts without requiring each
 4. Candidate submit page fetches repositories from `/api/candidate/github/repositories`.
 5. Candidate selects repository and submits.
 6. API validates repository + installation and stores `githubInstallationId`.
+7. Future submissions can omit installation ID; API reuses the candidate's latest saved installation automatically.
 5. Push events from GitHub App webhook hit `/api/webhooks/github`.
 6. Pipeline service finds matching submissions and queues rebuild runs.
 

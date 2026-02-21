@@ -32,15 +32,24 @@ const createSubmissionSchema = z.object({
   const hasRepositoryUrl = typeof value.repositoryUrl === 'string' && value.repositoryUrl.length > 0
   const hasRepositorySelection =
     typeof value.repositoryFullName === 'string' &&
-    value.repositoryFullName.length > 0 &&
-    typeof value.githubInstallationId === 'string' &&
-    value.githubInstallationId.length > 0
+    value.repositoryFullName.length > 0
 
   if (!hasRepositoryUrl && !hasRepositorySelection) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message:
         'Provide repositoryUrl or repositoryFullName with githubInstallationId.'
+    })
+  }
+
+  if (
+    typeof value.githubInstallationId === 'string' &&
+    value.githubInstallationId.length > 0 &&
+    !hasRepositorySelection
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'githubInstallationId requires repositoryFullName.'
     })
   }
 })
@@ -50,7 +59,7 @@ const candidateOverviewQuerySchema = z.object({
 })
 
 const candidateRepositoriesQuerySchema = z.object({
-  installationId: z.string().trim().regex(/^\d+$/)
+  installationId: z.string().trim().regex(/^\d+$/).optional()
 })
 
 const candidateSubmissionParamsSchema = z.object({

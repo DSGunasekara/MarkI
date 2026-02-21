@@ -13,13 +13,13 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "@/components/ui/select"
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList
+} from "@/components/ui/combobox"
 import {
   candidateApi,
   integrationApi,
@@ -58,10 +58,17 @@ export function CandidateSubmitRepository({
   const selectedRepository = useMemo(() => {
     return repositories.find((repository) => repository.fullName === selectedRepositoryFullName) ?? null
   }, [repositories, selectedRepositoryFullName])
+  const uninstallUrl = useMemo(() => {
+    if (!installationId) {
+      return null
+    }
 
-  const loadRepositories = useCallback(async (nextInstallationId: string) => {
-    const normalizedInstallationId = nextInstallationId.trim()
-    if (!/^\d+$/.test(normalizedInstallationId)) {
+    return `https://github.com/settings/installations/${installationId}`
+  }, [installationId])
+
+  const loadRepositories = useCallback(async (nextInstallationId?: string) => {
+    const normalizedInstallationId = (nextInstallationId ?? installationId).trim()
+    if (normalizedInstallationId.length > 0 && !/^\d+$/.test(normalizedInstallationId)) {
       setRepositoriesErrorMessage("Installation ID must be numeric.")
       setRepositories([])
       setSelectedRepositoryFullName("")
@@ -72,7 +79,10 @@ export function CandidateSubmitRepository({
     setIsLoadingRepositories(true)
 
     try {
-      const response = await candidateApi.getInstallationRepositories(normalizedInstallationId)
+      const response = await candidateApi.getInstallationRepositories(
+        normalizedInstallationId.length > 0 ? normalizedInstallationId : undefined
+      )
+      setInstallationId(response.installationId ?? "")
       setRepositories(response.repositories)
       setSelectedRepositoryFullName((current) => {
         if (current.length > 0 && response.repositories.some((repository) => repository.fullName === current)) {
@@ -88,7 +98,7 @@ export function CandidateSubmitRepository({
     } finally {
       setIsLoadingRepositories(false)
     }
-  }, [])
+  }, [installationId])
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -106,6 +116,11 @@ export function CandidateSubmitRepository({
             if (installationIdFromQuery && /^\d+$/.test(installationIdFromQuery)) {
               setInstallationId(installationIdFromQuery)
               await loadRepositories(installationIdFromQuery)
+
+              const nextUrl = window.location.pathname
+              window.history.replaceState({}, "", nextUrl)
+            } else {
+              await loadRepositories()
             }
           }
         } catch (error: unknown) {
@@ -131,11 +146,6 @@ export function CandidateSubmitRepository({
     }
 
     if (isGitHubAppSelectionMode) {
-      if (installationId.trim().length === 0) {
-        setErrorMessage("Installation ID is required.")
-        return
-      }
-
       if (selectedRepositoryFullName.length === 0) {
         setErrorMessage("Select a repository to submit.")
         return
@@ -154,7 +164,8 @@ export function CandidateSubmitRepository({
         ? await candidateApi.submitRepository({
             joinCode: normalizedJoinCode,
             repositoryFullName: selectedRepositoryFullName,
-            githubInstallationId: installationId.trim()
+            githubInstallationId:
+              installationId.trim().length > 0 ? installationId.trim() : undefined
           })
         : await candidateApi.submitRepository({
             joinCode: normalizedJoinCode,
@@ -216,46 +227,39 @@ export function CandidateSubmitRepository({
             ) : githubAppConfig?.isConfigured ? (
               <>
                 <p className="text-sm text-muted-foreground">
-                  Install the GitHub App, then select the repository from your installation.
+                  Install the GitHub App, then load and select a repository from your installation.
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
-                  {githubAppConfig.installUrl ? (
+                  {!installationId && githubAppConfig.installUrl ? (
                     <Button asChild size="sm" variant="outline">
                       <a href={githubAppConfig.installUrl} target="_blank" rel="noreferrer">
                         Install GitHub App
                       </a>
                     </Button>
-                  ) : (
+                  ) : null}
+                  {!installationId && !githubAppConfig.installUrl ? (
                     <p className="text-sm text-muted-foreground">
                       Install URL unavailable. Contact support with app slug configuration.
                     </p>
-                  )}
-                </div>
-
-                <div className="grid gap-2 md:grid-cols-[1fr_auto] md:items-end">
-                  <div className="space-y-2">
-                    <Label htmlFor="github-installation-id" className="app-overline">
-                      Installation ID
-                    </Label>
-                    <Input
-                      id="github-installation-id"
-                      value={installationId}
-                      onChange={(event) => setInstallationId(event.target.value)}
-                      className="h-10 border-input bg-background font-mono"
-                      placeholder="12345678"
-                    />
-                  </div>
+                  ) : null}
                   <Button
                     type="button"
                     variant="outline"
                     className="h-10"
                     onClick={() => {
-                      void loadRepositories(installationId)
+                      void loadRepositories()
                     }}
                     disabled={isLoadingRepositories}
                   >
                     {isLoadingRepositories ? "Loading repositories..." : "Load repositories"}
                   </Button>
+                  {installationId && uninstallUrl ? (
+                    <Button asChild size="sm" variant="outline">
+                      <a href={uninstallUrl} target="_blank" rel="noreferrer">
+                        Uninstall GitHub App
+                      </a>
+                    </Button>
+                  ) : null}
                 </div>
 
                 {repositoriesErrorMessage ? (
@@ -267,26 +271,31 @@ export function CandidateSubmitRepository({
                     <Label htmlFor="github-repository-select" className="app-overline">
                       Repository
                     </Label>
-                    <Select
-                      value={selectedRepositoryFullName}
-                      onValueChange={setSelectedRepositoryFullName}
+                    <Combobox
+                      items={repositories.map((repository) => repository.fullName)}
+                      value={selectedRepositoryFullName || null}
+                      onValueChange={(value) => {
+                        setSelectedRepositoryFullName(value ?? "")
+                      }}
                     >
-                      <SelectTrigger
+                      <ComboboxInput
                         id="github-repository-select"
-                        className="h-10 w-full border-input bg-background"
-                      >
-                        <SelectValue placeholder="Select repository" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          {repositories.map((repository) => (
-                            <SelectItem key={repository.fullName} value={repository.fullName}>
-                              {repository.fullName}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
+                        placeholder="Search and select repository"
+                        className="w-full"
+                        showClear
+                        required
+                      />
+                      <ComboboxContent>
+                        <ComboboxEmpty>No repositories found.</ComboboxEmpty>
+                        <ComboboxList>
+                          {(item) => (
+                            <ComboboxItem key={item} value={item}>
+                              {item}
+                            </ComboboxItem>
+                          )}
+                        </ComboboxList>
+                      </ComboboxContent>
+                    </Combobox>
                     {selectedRepository ? (
                       <p className="text-xs text-muted-foreground">
                         Branch {selectedRepository.defaultBranch} ·{" "}
@@ -296,7 +305,9 @@ export function CandidateSubmitRepository({
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    No repositories loaded yet. Install the app and load your installation repositories.
+                    {installationId
+                      ? "No repositories found for this installation."
+                      : "No saved installation found yet. Install the app once, then load repositories."}
                   </p>
                 )}
               </>
@@ -366,8 +377,7 @@ export function CandidateSubmitRepository({
                   className="h-10"
                   disabled={
                     isSubmitting ||
-                    (isGitHubAppSelectionMode &&
-                      (installationId.trim().length === 0 || selectedRepositoryFullName.length === 0))
+                    (isGitHubAppSelectionMode && selectedRepositoryFullName.length === 0)
                   }
                 >
                   {isSubmitting ? "Submitting..." : "Submit repository"}

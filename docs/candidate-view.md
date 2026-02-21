@@ -33,6 +33,8 @@ Rules:
 ### `GET /api/candidate/github/repositories?installationId=<id>`
 Returns repositories visible to the provided GitHub App installation.
 
+If `installationId` is omitted, API reuses the candidate's latest saved installation ID from previous submissions.
+
 ### `GET /api/integrations/github/app`
 Returns GitHub App public integration config used by the candidate submission page.
 

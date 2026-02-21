@@ -250,7 +250,7 @@ type GitHubAppConfigEnvelope = {
 
 type GitHubInstallationRepositoriesEnvelope = {
   data: {
-    installationId: string
+    installationId: string | null
     repositories: GitHubInstallationRepository[]
   }
 }
@@ -522,16 +522,23 @@ export const candidateApi = {
     return payload.data
   },
 
-  getInstallationRepositories: async (installationId: string): Promise<{
-    installationId: string
+  getInstallationRepositories: async (installationId?: string): Promise<{
+    installationId: string | null
     repositories: GitHubInstallationRepository[]
   }> => {
-    const query = new URLSearchParams({
-      installationId
-    })
+    const query = new URLSearchParams()
+    if (installationId && installationId.trim().length > 0) {
+      query.set("installationId", installationId.trim())
+    }
+
+    const queryString = query.toString()
+    const path =
+      queryString.length > 0
+        ? `/api/candidate/github/repositories?${queryString}`
+        : "/api/candidate/github/repositories"
 
     const payload = await request<GitHubInstallationRepositoriesEnvelope>(
-      `/api/candidate/github/repositories?${query.toString()}`
+      path
     )
     return payload.data
   }
