@@ -312,9 +312,40 @@ const runCommandAllowFailure = async (input: BuildCommandContext): Promise<void>
   }
 }
 
+const ensureDockerIgnore = async (repositoryDirectory: string): Promise<void> => {
+  const dockerIgnorePath = path.join(repositoryDirectory, '.dockerignore')
+  const requiredPatterns = [
+    '.git',
+    '.next',
+    'node_modules',
+    'dist',
+    'coverage',
+    '*.log',
+    '*.tsbuildinfo'
+  ]
+
+  let existingLines: string[] = []
+  if (await tryAccess(dockerIgnorePath)) {
+    const existingContent = await readFile(dockerIgnorePath, 'utf8')
+    existingLines = existingContent
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+  }
+
+  const lineSet = new Set(existingLines)
+  for (const pattern of requiredPatterns) {
+    lineSet.add(pattern)
+  }
+
+  const nextContent = `${Array.from(lineSet).join('\n')}\n`
+  await writeFile(dockerIgnorePath, nextContent, 'utf8')
+}
+
 const createDockerfileContent = (startCommand: string): string => {
   return `FROM node:20-alpine
 WORKDIR /app
+ENV CI=true
 COPY . .
 RUN corepack enable || true
 RUN if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; elif [ -f yarn.lock ]; then yarn install --frozen-lockfile; elif [ -f package-lock.json ]; then npm ci; else npm install; fi
@@ -593,6 +624,7 @@ const runPipeline = async (runId: string): Promise<void> => {
       const hostPort = await pickPreviewPort(preferredPort)
       const dockerfilePath = path.join(repositoryDirectory, '.hiring-engine.Dockerfile')
 
+      await ensureDockerIgnore(repositoryDirectory)
       await writeFile(dockerfilePath, createDockerfileContent(resolveStartCommand(packageManager)), 'utf8')
 
       await runCommand({
