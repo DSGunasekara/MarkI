@@ -182,7 +182,8 @@ export const authApi = {
   },
   signOut: async (): Promise<void> => {
     await request<unknown>("/api/auth/sign-out", {
-      method: "POST"
+      method: "POST",
+      body: JSON.stringify({})
     })
   },
   getSession: async (): Promise<SessionState> => {
