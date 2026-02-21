@@ -6,7 +6,10 @@ The frontend now provides a production-style employer workspace with:
 - Full-width dashboard header and dense layout
 - Recent assignments table
 - Recent submissions table
-- Assignment creation panel with inline validation
+- Dedicated action routes:
+  - Employer: `/employer/assignments/new`
+  - Candidate: `/candidate/submissions/new`
+- Dashboard container width constrained with `max-w-7xl`
 - UI styling mapped to theme tokens from `/Users/Dilain/.codex/worktrees/5eff/MarkI/apps/web/src/index.css` (`app-shell`, `app-panel`, `app-header`, `app-overline`)
 
 ## Frontend Files
@@ -40,17 +43,16 @@ All requests include cookies (`credentials: include`).
    - Metrics summary
    - Recent assignments with submission counts
    - Recent submissions with status and repository URLs
-3. Assignment creation posts to:
+3. Assignment creation is handled in a dedicated route page (`/employer/assignments/new`) and posts to:
    - `POST /api/assignments`
 4. On create success, overview is refreshed to keep lists and KPIs current.
 
 ## UX Decisions
 - Full-width top header for global controls and account identity.
+- Content container (`max-w-7xl`) to keep dense tables readable on large screens.
 - Compact KPI cards for quick scanning.
-- Two-panel core workflow:
-  - left: operational visibility (recent assignments)
-  - right: primary action (create assignment)
-- Dedicated submissions table below for pipeline monitoring.
+- Dashboard pages are read-focused; primary actions are moved to dedicated routes.
+- Dedicated submissions table for pipeline monitoring.
 - Empty states and loading states for all data regions.
 - Refresh action to resync without page reload.
 

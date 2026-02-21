@@ -2,20 +2,77 @@ import { useCallback, useEffect, useState } from "react"
 
 import { AuthPanel } from "@/components/auth/auth-panel"
 import { CandidatePending } from "@/components/dashboard/candidate-pending"
+import { CandidateSubmitRepository } from "@/components/dashboard/candidate-submit-repository"
+import { EmployerCreateAssignment } from "@/components/dashboard/employer-create-assignment"
 import { EmployerDashboard } from "@/components/dashboard/employer-dashboard"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { authApi, isUnauthorizedError, toErrorMessage, type SessionState } from "@/lib/api"
+import {
+  authApi,
+  isUnauthorizedError,
+  toErrorMessage,
+  type SessionState,
+  type UserRole
+} from "@/lib/api"
 
 type BootstrapStatus = "loading" | "ready" | "error"
+
+type NavigateMode = "push" | "replace"
+
+const EMPLOYER_DASHBOARD_PATH = "/employer/dashboard"
+const EMPLOYER_CREATE_ASSIGNMENT_PATH = "/employer/assignments/new"
+const CANDIDATE_DASHBOARD_PATH = "/candidate/dashboard"
+const CANDIDATE_SUBMIT_REPOSITORY_PATH = "/candidate/submissions/new"
+
+const getDefaultPathForRole = (role: UserRole): string => {
+  return role === "employer" ? EMPLOYER_DASHBOARD_PATH : CANDIDATE_DASHBOARD_PATH
+}
+
+const isAllowedPathForRole = (role: UserRole, pathname: string): boolean => {
+  if (role === "employer") {
+    return pathname === EMPLOYER_DASHBOARD_PATH || pathname === EMPLOYER_CREATE_ASSIGNMENT_PATH
+  }
+
+  return pathname === CANDIDATE_DASHBOARD_PATH || pathname === CANDIDATE_SUBMIT_REPOSITORY_PATH
+}
 
 function App() {
   const [status, setStatus] = useState<BootstrapStatus>("loading")
   const [session, setSession] = useState<SessionState | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [pathname, setPathname] = useState<string>(() => window.location.pathname)
 
   useEffect(() => {
     document.documentElement.classList.add("dark")
+  }, [])
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setPathname(window.location.pathname)
+    }
+
+    window.addEventListener("popstate", handlePopState)
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+    }
+  }, [])
+
+  const navigate = useCallback((nextPath: string, mode: NavigateMode = "push") => {
+    const currentPath = window.location.pathname
+
+    if (currentPath === nextPath) {
+      setPathname(nextPath)
+      return
+    }
+
+    if (mode === "replace") {
+      window.history.replaceState({}, "", nextPath)
+    } else {
+      window.history.pushState({}, "", nextPath)
+    }
+
+    setPathname(nextPath)
   }, [])
 
   const refreshSession = useCallback(async () => {
@@ -40,8 +97,9 @@ function App() {
 
   const handleSignOut = useCallback(async () => {
     await authApi.signOut()
+    navigate("/", "replace")
     await refreshSession()
-  }, [refreshSession])
+  }, [navigate, refreshSession])
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -52,6 +110,19 @@ function App() {
       window.clearTimeout(timerId)
     }
   }, [refreshSession])
+
+  useEffect(() => {
+    if (!session) {
+      return
+    }
+
+    const role = session.user.role
+    if (isAllowedPathForRole(role, pathname)) {
+      return
+    }
+
+    navigate(getDefaultPathForRole(role), "replace")
+  }, [navigate, pathname, session])
 
   if (status === "loading") {
     return (
@@ -92,12 +163,36 @@ function App() {
     )
   }
 
+  const role = session.user.role
+
   return (
     <div className="app-shell dark">
-      {session.user.role === "employer" ? (
-        <EmployerDashboard user={session.user} onSignOut={handleSignOut} />
+      {role === "employer" ? (
+        pathname === EMPLOYER_CREATE_ASSIGNMENT_PATH ? (
+          <EmployerCreateAssignment
+            user={session.user}
+            onSignOut={handleSignOut}
+            onBackToDashboard={() => navigate(EMPLOYER_DASHBOARD_PATH)}
+          />
+        ) : (
+          <EmployerDashboard
+            user={session.user}
+            onSignOut={handleSignOut}
+            onOpenCreateAssignment={() => navigate(EMPLOYER_CREATE_ASSIGNMENT_PATH)}
+          />
+        )
+      ) : pathname === CANDIDATE_SUBMIT_REPOSITORY_PATH ? (
+        <CandidateSubmitRepository
+          user={session.user}
+          onSignOut={handleSignOut}
+          onBackToDashboard={() => navigate(CANDIDATE_DASHBOARD_PATH)}
+        />
       ) : (
-        <CandidatePending user={session.user} onSignOut={handleSignOut} />
+        <CandidatePending
+          user={session.user}
+          onSignOut={handleSignOut}
+          onOpenSubmitRepository={() => navigate(CANDIDATE_SUBMIT_REPOSITORY_PATH)}
+        />
       )}
     </div>
   )

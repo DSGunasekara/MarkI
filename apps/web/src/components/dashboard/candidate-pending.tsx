@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { RefreshCwIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -7,12 +7,9 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle
 } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   candidateApi,
   toErrorMessage,
@@ -21,9 +18,10 @@ import {
   type SessionUser
 } from "@/lib/api"
 
-type CandidateWorkspaceProps = {
+type CandidateDashboardProps = {
   user: SessionUser
   onSignOut: () => Promise<void>
+  onOpenSubmitRepository: () => void
 }
 
 type OverviewLoadMode = "initial" | "refresh"
@@ -49,13 +47,11 @@ const toRepositoryHref = (repositoryUrl: string): string => {
   return `https://${repositoryUrl}`
 }
 
-export function CandidatePending({ user, onSignOut }: CandidateWorkspaceProps) {
-  const [joinCode, setJoinCode] = useState("")
-  const [repositoryUrl, setRepositoryUrl] = useState("")
-  const [submitMessage, setSubmitMessage] = useState<string | null>(null)
-  const [submitErrorMessage, setSubmitErrorMessage] = useState<string | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
+export function CandidatePending({
+  user,
+  onSignOut,
+  onOpenSubmitRepository
+}: CandidateDashboardProps) {
   const [overview, setOverview] = useState<CandidateOverview | null>(null)
   const [overviewErrorMessage, setOverviewErrorMessage] = useState<string | null>(null)
   const [isLoadingOverview, setIsLoadingOverview] = useState(true)
@@ -94,47 +90,6 @@ export function CandidatePending({ user, onSignOut }: CandidateWorkspaceProps) {
     }
   }, [loadOverview])
 
-  const handleSubmitRepository = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    const normalizedJoinCode = joinCode.trim().toUpperCase()
-    const normalizedRepositoryUrl = repositoryUrl.trim()
-
-    if (normalizedJoinCode.length < 4) {
-      setSubmitErrorMessage("Join code is required.")
-      return
-    }
-
-    if (normalizedRepositoryUrl.length === 0) {
-      setSubmitErrorMessage("Repository URL is required.")
-      return
-    }
-
-    setSubmitErrorMessage(null)
-    setSubmitMessage(null)
-    setIsSubmitting(true)
-
-    try {
-      const submissionResult = await candidateApi.submitRepository({
-        joinCode: normalizedJoinCode,
-        repositoryUrl: normalizedRepositoryUrl
-      })
-
-      setJoinCode("")
-      setRepositoryUrl("")
-      setSubmitMessage(
-        submissionResult.isResubmission
-          ? `Resubmitted for ${submissionResult.assignmentTitle}. Status reset to pending.`
-          : `Submitted for ${submissionResult.assignmentTitle} (${submissionResult.joinCode}).`
-      )
-      await loadOverview("refresh")
-    } catch (error: unknown) {
-      setSubmitErrorMessage(toErrorMessage(error))
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
   const metrics = useMemo(() => {
     return (
       overview?.metrics ?? {
@@ -155,11 +110,14 @@ export function CandidatePending({ user, onSignOut }: CandidateWorkspaceProps) {
             <div className="size-2 rounded-full bg-primary" />
             <div>
               <p className="app-overline">Hiring Engine</p>
-              <p className="text-sm font-medium">Candidate Workspace</p>
+              <p className="text-sm font-medium">Candidate Dashboard</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline">{user.email}</Badge>
+            <Button size="sm" onClick={onOpenSubmitRepository}>
+              Submit repository
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -178,7 +136,7 @@ export function CandidatePending({ user, onSignOut }: CandidateWorkspaceProps) {
         </div>
       </header>
 
-      <main className="w-full space-y-4 px-4 py-4 md:px-6 lg:px-8">
+      <main className="mx-auto w-full max-w-7xl space-y-4 px-4 py-4 md:px-6 lg:px-8">
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <Card className="app-panel">
             <CardContent className="space-y-1 py-4">
@@ -218,109 +176,59 @@ export function CandidatePending({ user, onSignOut }: CandidateWorkspaceProps) {
           </Card>
         ) : null}
 
-        <section className="grid gap-4 xl:grid-cols-[1.45fr_0.9fr]">
-          <Card className="app-panel">
-            <CardHeader>
-              <CardTitle>My Submissions</CardTitle>
-              <CardDescription>Track your latest assignment submissions and runner status updates.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingOverview && !overview ? (
-                <p className="text-sm text-muted-foreground">Loading submissions...</p>
-              ) : overview && overview.recentSubmissions.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[820px] border-collapse text-sm">
-                    <thead>
-                      <tr className="border-b border-border text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                        <th className="px-3 py-2 font-medium">Assignment</th>
-                        <th className="px-3 py-2 font-medium">Join code</th>
-                        <th className="px-3 py-2 font-medium">Repository</th>
-                        <th className="px-3 py-2 font-medium">Status</th>
-                        <th className="px-3 py-2 font-medium">Updated</th>
+        <Card className="app-panel">
+          <CardHeader>
+            <CardTitle>My Recent Submissions</CardTitle>
+            <CardDescription>Track your assignment submissions and runner status updates.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoadingOverview && !overview ? (
+              <p className="text-sm text-muted-foreground">Loading submissions...</p>
+            ) : overview && overview.recentSubmissions.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[820px] border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                      <th className="px-3 py-2 font-medium">Assignment</th>
+                      <th className="px-3 py-2 font-medium">Join code</th>
+                      <th className="px-3 py-2 font-medium">Repository</th>
+                      <th className="px-3 py-2 font-medium">Status</th>
+                      <th className="px-3 py-2 font-medium">Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {overview.recentSubmissions.map((submission) => (
+                      <tr key={submission.id} className="border-b border-border/60 align-top">
+                        <td className="px-3 py-3 font-medium">{submission.assignmentTitle}</td>
+                        <td className="px-3 py-3">
+                          <Badge variant="outline" className="font-mono tracking-wider">
+                            {submission.joinCode}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-3">
+                          <a
+                            href={toRepositoryHref(submission.repositoryUrl)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="line-clamp-1 text-foreground underline decoration-border underline-offset-2 hover:text-primary"
+                          >
+                            {submission.repositoryUrl}
+                          </a>
+                        </td>
+                        <td className="px-3 py-3">
+                          <Badge variant={statusBadgeVariantMap[submission.status]}>{submission.status}</Badge>
+                        </td>
+                        <td className="px-3 py-3 text-muted-foreground">{formatDateTime(submission.updatedAt)}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {overview.recentSubmissions.map((submission) => (
-                        <tr key={submission.id} className="border-b border-border/60 align-top">
-                          <td className="px-3 py-3 font-medium">{submission.assignmentTitle}</td>
-                          <td className="px-3 py-3">
-                            <Badge variant="outline" className="font-mono tracking-wider">
-                              {submission.joinCode}
-                            </Badge>
-                          </td>
-                          <td className="px-3 py-3">
-                            <a
-                              href={toRepositoryHref(submission.repositoryUrl)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="line-clamp-1 text-foreground underline decoration-border underline-offset-2 hover:text-primary"
-                            >
-                              {submission.repositoryUrl}
-                            </a>
-                          </td>
-                          <td className="px-3 py-3">
-                            <Badge variant={statusBadgeVariantMap[submission.status]}>{submission.status}</Badge>
-                          </td>
-                          <td className="px-3 py-3 text-muted-foreground">{formatDateTime(submission.updatedAt)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No submissions yet. Join an assignment to get started.</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="app-panel xl:sticky xl:top-[4.5rem] xl:h-fit">
-            <CardHeader>
-              <CardTitle>Submit Repository</CardTitle>
-              <CardDescription>
-                Enter the employer-provided join code and your public GitHub repository URL.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-4" onSubmit={handleSubmitRepository}>
-                <div className="space-y-2">
-                  <Label htmlFor="candidate-join-code" className="app-overline">
-                    Join code
-                  </Label>
-                  <Input
-                    id="candidate-join-code"
-                    value={joinCode}
-                    onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
-                    className="h-10 border-input bg-background font-mono tracking-wider"
-                    placeholder="AB12CD34"
-                    maxLength={32}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="candidate-repository-url" className="app-overline">
-                    GitHub repository URL
-                  </Label>
-                  <Input
-                    id="candidate-repository-url"
-                    value={repositoryUrl}
-                    onChange={(event) => setRepositoryUrl(event.target.value)}
-                    className="h-10 border-input bg-background"
-                    placeholder="https://github.com/username/repository"
-                    required
-                  />
-                </div>
-                {submitMessage ? <p className="text-sm text-primary">{submitMessage}</p> : null}
-                {submitErrorMessage ? <p className="text-sm text-destructive">{submitErrorMessage}</p> : null}
-                <Button type="submit" className="h-10" disabled={isSubmitting}>
-                  {isSubmitting ? "Submitting..." : "Submit repository"}
-                </Button>
-              </form>
-            </CardContent>
-            <CardFooter>
-              <p className="text-xs text-muted-foreground">Resubmitting updates the same assignment submission and resets status to pending.</p>
-            </CardFooter>
-          </Card>
-        </section>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No submissions yet. Submit your repository to get started.</p>
+            )}
+          </CardContent>
+        </Card>
       </main>
     </div>
   )

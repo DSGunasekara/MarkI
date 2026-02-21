@@ -5,6 +5,9 @@ Candidate users can now:
 - Join an assignment using a join code.
 - Submit or resubmit a public GitHub repository URL.
 - View submission metrics and recent submission history.
+- Use separate routes:
+  - dashboard: `/candidate/dashboard`
+  - submit form: `/candidate/submissions/new`
 
 ## API Endpoints
 
@@ -42,7 +45,7 @@ Response:
 
 ## UX Flow
 1. Candidate signs in.
-2. Dashboard loads `GET /api/candidate/overview`.
-3. Candidate submits join code + repo URL via form.
+2. Dashboard route (`/candidate/dashboard`) loads `GET /api/candidate/overview`.
+3. Candidate opens submit route (`/candidate/submissions/new`) and submits join code + repo URL.
 4. UI shows success/failure feedback.
-5. Dashboard refreshes metrics + submission table.
+5. Candidate returns to dashboard to review updated statuses.
