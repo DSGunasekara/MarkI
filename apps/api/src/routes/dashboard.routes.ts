@@ -11,6 +11,15 @@ const dashboardOverviewQuerySchema = z.object({
   submissionsLimit: z.coerce.number().int().min(1).max(25).optional()
 })
 
+const dashboardSubmissionsQuerySchema = z.object({
+  assignmentId: z.string().uuid().optional(),
+  status: z.enum(['pending', 'building', 'deployed', 'failed']).optional(),
+  search: z.string().trim().min(1).max(120).optional(),
+  sort: z.enum(['newest', 'oldest']).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  offset: z.coerce.number().int().min(0).max(5_000).optional()
+})
+
 export const dashboardRoutes = new Hono<AppBindings>()
 
 dashboardRoutes.get(
@@ -21,5 +30,16 @@ dashboardRoutes.get(
   async (c) => {
     const query = c.req.valid('query')
     return dashboardController.overview(c, query)
+  }
+)
+
+dashboardRoutes.get(
+  '/submissions',
+  requireAuth,
+  requireRole(['employer']),
+  zValidator('query', dashboardSubmissionsQuerySchema),
+  async (c) => {
+    const query = c.req.valid('query')
+    return dashboardController.submissions(c, query)
   }
 )

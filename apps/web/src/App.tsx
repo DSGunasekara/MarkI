@@ -5,6 +5,7 @@ import { CandidatePending } from "@/components/dashboard/candidate-pending"
 import { CandidateSubmitRepository } from "@/components/dashboard/candidate-submit-repository"
 import { EmployerCreateAssignment } from "@/components/dashboard/employer-create-assignment"
 import { EmployerDashboard } from "@/components/dashboard/employer-dashboard"
+import { EmployerSubmissionsExplorer } from "@/components/dashboard/employer-submissions-explorer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -21,6 +22,7 @@ type NavigateMode = "push" | "replace"
 
 const EMPLOYER_DASHBOARD_PATH = "/employer/dashboard"
 const EMPLOYER_CREATE_ASSIGNMENT_PATH = "/employer/assignments/new"
+const EMPLOYER_SUBMISSIONS_PATH = "/employer/submissions"
 const CANDIDATE_DASHBOARD_PATH = "/candidate/dashboard"
 const CANDIDATE_SUBMIT_REPOSITORY_PATH = "/candidate/submissions/new"
 
@@ -30,7 +32,11 @@ const getDefaultPathForRole = (role: UserRole): string => {
 
 const isAllowedPathForRole = (role: UserRole, pathname: string): boolean => {
   if (role === "employer") {
-    return pathname === EMPLOYER_DASHBOARD_PATH || pathname === EMPLOYER_CREATE_ASSIGNMENT_PATH
+    return (
+      pathname === EMPLOYER_DASHBOARD_PATH ||
+      pathname === EMPLOYER_CREATE_ASSIGNMENT_PATH ||
+      pathname === EMPLOYER_SUBMISSIONS_PATH
+    )
   }
 
   return pathname === CANDIDATE_DASHBOARD_PATH || pathname === CANDIDATE_SUBMIT_REPOSITORY_PATH
@@ -121,8 +127,8 @@ function App() {
       return
     }
 
-    navigate(getDefaultPathForRole(role), "replace")
-  }, [navigate, pathname, session])
+    window.history.replaceState({}, "", getDefaultPathForRole(role))
+  }, [pathname, session])
 
   if (status === "loading") {
     return (
@@ -164,24 +170,34 @@ function App() {
   }
 
   const role = session.user.role
+  const resolvedPath =
+    isAllowedPathForRole(role, pathname) ? pathname : getDefaultPathForRole(role)
 
   return (
     <div className="app-shell dark">
       {role === "employer" ? (
-        pathname === EMPLOYER_CREATE_ASSIGNMENT_PATH ? (
+        resolvedPath === EMPLOYER_CREATE_ASSIGNMENT_PATH ? (
           <EmployerCreateAssignment
             user={session.user}
             onSignOut={handleSignOut}
             onBackToDashboard={() => navigate(EMPLOYER_DASHBOARD_PATH)}
+          />
+        ) : resolvedPath === EMPLOYER_SUBMISSIONS_PATH ? (
+          <EmployerSubmissionsExplorer
+            user={session.user}
+            onSignOut={handleSignOut}
+            onBackToDashboard={() => navigate(EMPLOYER_DASHBOARD_PATH)}
+            onOpenCreateAssignment={() => navigate(EMPLOYER_CREATE_ASSIGNMENT_PATH)}
           />
         ) : (
           <EmployerDashboard
             user={session.user}
             onSignOut={handleSignOut}
             onOpenCreateAssignment={() => navigate(EMPLOYER_CREATE_ASSIGNMENT_PATH)}
+            onOpenSubmissionsExplorer={() => navigate(EMPLOYER_SUBMISSIONS_PATH)}
           />
         )
-      ) : pathname === CANDIDATE_SUBMIT_REPOSITORY_PATH ? (
+      ) : resolvedPath === CANDIDATE_SUBMIT_REPOSITORY_PATH ? (
         <CandidateSubmitRepository
           user={session.user}
           onSignOut={handleSignOut}

@@ -23,6 +23,7 @@ type EmployerDashboardProps = {
   user: SessionUser
   onSignOut: () => Promise<void>
   onOpenCreateAssignment: () => void
+  onOpenSubmissionsExplorer: () => void
 }
 
 type OverviewLoadMode = "initial" | "refresh"
@@ -52,7 +53,12 @@ const toRepositoryHref = (repositoryUrl: string): string => {
   return `https://${repositoryUrl}`
 }
 
-export function EmployerDashboard({ user, onSignOut, onOpenCreateAssignment }: EmployerDashboardProps) {
+export function EmployerDashboard({
+  user,
+  onSignOut,
+  onOpenCreateAssignment,
+  onOpenSubmissionsExplorer
+}: EmployerDashboardProps) {
   const [overview, setOverview] = useState<DashboardOverview | null>(null)
   const [overviewErrorMessage, setOverviewErrorMessage] = useState<string | null>(null)
   const [isLoadingOverview, setIsLoadingOverview] = useState(true)
@@ -124,6 +130,9 @@ export function EmployerDashboard({ user, onSignOut, onOpenCreateAssignment }: E
             <Button size="sm" onClick={onOpenCreateAssignment}>
               New assignment
             </Button>
+            <Button size="sm" variant="outline" onClick={onOpenSubmissionsExplorer}>
+              All submissions
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -188,7 +197,7 @@ export function EmployerDashboard({ user, onSignOut, onOpenCreateAssignment }: E
           </Card>
         ) : null}
 
-        <section className="grid gap-4 xl:grid-cols-2">
+        <section className="space-y-4">
           <Card className="app-panel">
             <CardHeader>
               <CardTitle>Recent Assignments</CardTitle>
@@ -236,9 +245,14 @@ export function EmployerDashboard({ user, onSignOut, onOpenCreateAssignment }: E
               )}
             </CardContent>
             <CardFooter>
-              <Button size="sm" onClick={onOpenCreateAssignment}>
-                Create assignment
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button size="sm" onClick={onOpenCreateAssignment}>
+                  Create assignment
+                </Button>
+                <Button size="sm" variant="outline" onClick={onOpenSubmissionsExplorer}>
+                  View all submissions
+                </Button>
+              </div>
             </CardFooter>
           </Card>
 

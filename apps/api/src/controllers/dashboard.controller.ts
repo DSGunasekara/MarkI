@@ -10,6 +10,15 @@ type DashboardOverviewQuery = {
   submissionsLimit?: number
 }
 
+type DashboardSubmissionsQuery = {
+  assignmentId?: string
+  status?: 'pending' | 'building' | 'deployed' | 'failed'
+  search?: string
+  sort?: 'newest' | 'oldest'
+  limit?: number
+  offset?: number
+}
+
 export const dashboardController = {
   overview: async (c: DashboardContext, query: DashboardOverviewQuery) => {
     const user = c.get('user')
@@ -30,6 +39,32 @@ export const dashboardController = {
 
     return c.json({
       data: dashboardData
+    })
+  },
+
+  submissions: async (c: DashboardContext, query: DashboardSubmissionsQuery) => {
+    const user = c.get('user')
+
+    if (!user) {
+      return c.json(
+        {
+          message: 'Authentication required.'
+        },
+        401
+      )
+    }
+
+    const submissionsData = await dashboardService.getEmployerSubmissions(user.id, {
+      assignmentId: query.assignmentId,
+      status: query.status,
+      search: query.search,
+      sort: query.sort,
+      limit: query.limit,
+      offset: query.offset
+    })
+
+    return c.json({
+      data: submissionsData
     })
   }
 }

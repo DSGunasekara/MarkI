@@ -8,6 +8,7 @@ The frontend now provides a production-style employer workspace with:
 - Recent submissions table
 - Dedicated action routes:
   - Employer: `/employer/assignments/new`
+  - Employer explorer: `/employer/submissions`
   - Candidate: `/candidate/submissions/new`
 - Dashboard container width constrained with `max-w-7xl`
 - UI styling mapped to theme tokens from `/Users/Dilain/.codex/worktrees/5eff/MarkI/apps/web/src/index.css` (`app-shell`, `app-panel`, `app-header`, `app-overline`)
@@ -52,6 +53,7 @@ All requests include cookies (`credentials: include`).
 - Content container (`max-w-7xl`) to keep dense tables readable on large screens.
 - Compact KPI cards for quick scanning.
 - Dashboard pages are read-focused; primary actions are moved to dedicated routes.
+- Submissions explorer provides grouped-by-assignment view with filters (assignment, status, search, sort, pagination).
 - Dedicated submissions table for pipeline monitoring.
 - Empty states and loading states for all data regions.
 - Refresh action to resync without page reload.

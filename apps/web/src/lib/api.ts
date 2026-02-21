@@ -63,6 +63,44 @@ export type DashboardOverview = {
   recentSubmissions: DashboardSubmission[]
 }
 
+export type EmployerSubmissionsSort = "newest" | "oldest"
+
+export type EmployerSubmissionExplorerRecord = {
+  id: string
+  assignmentId: string
+  assignmentTitle: string
+  joinCode: string
+  candidateId: string
+  candidateName: string
+  candidateEmail: string
+  repositoryUrl: string
+  status: DashboardSubmissionStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export type EmployerSubmissionExplorerAssignment = {
+  id: string
+  title: string
+  joinCode: string
+  submissionCount: number
+  latestSubmissionAt: string | null
+}
+
+export type EmployerSubmissionExplorer = {
+  filters: {
+    assignmentId: string | null
+    status: DashboardSubmissionStatus | null
+    search: string | null
+    sort: EmployerSubmissionsSort
+    limit: number
+    offset: number
+  }
+  assignmentOptions: EmployerSubmissionExplorerAssignment[]
+  totalSubmissions: number
+  submissions: EmployerSubmissionExplorerRecord[]
+}
+
 export type CandidateSubmission = {
   id: string
   assignmentId: string
@@ -105,6 +143,10 @@ type AssignmentEnvelope = {
 
 type DashboardOverviewEnvelope = {
   data: DashboardOverview
+}
+
+type DashboardSubmissionsEnvelope = {
+  data: EmployerSubmissionExplorer
 }
 
 type CandidateOverviewEnvelope = {
@@ -277,6 +319,47 @@ export const dashboardApi = {
     const path =
       queryString.length > 0 ? `/api/dashboard/overview?${queryString}` : "/api/dashboard/overview"
     const payload = await request<DashboardOverviewEnvelope>(path)
+    return payload.data
+  },
+
+  getSubmissions: async (input?: {
+    assignmentId?: string
+    status?: DashboardSubmissionStatus
+    search?: string
+    sort?: EmployerSubmissionsSort
+    limit?: number
+    offset?: number
+  }): Promise<EmployerSubmissionExplorer> => {
+    const query = new URLSearchParams()
+
+    if (typeof input?.assignmentId === "string" && input.assignmentId.length > 0) {
+      query.set("assignmentId", input.assignmentId)
+    }
+
+    if (typeof input?.status === "string") {
+      query.set("status", input.status)
+    }
+
+    if (typeof input?.search === "string" && input.search.trim().length > 0) {
+      query.set("search", input.search.trim())
+    }
+
+    if (typeof input?.sort === "string") {
+      query.set("sort", input.sort)
+    }
+
+    if (typeof input?.limit === "number") {
+      query.set("limit", String(input.limit))
+    }
+
+    if (typeof input?.offset === "number") {
+      query.set("offset", String(input.offset))
+    }
+
+    const queryString = query.toString()
+    const path =
+      queryString.length > 0 ? `/api/dashboard/submissions?${queryString}` : "/api/dashboard/submissions"
+    const payload = await request<DashboardSubmissionsEnvelope>(path)
     return payload.data
   }
 }
