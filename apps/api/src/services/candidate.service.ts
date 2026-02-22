@@ -10,6 +10,7 @@ type CreateCandidateSubmissionInput = {
   repositoryUrl?: string
   repositoryFullName?: string
   githubInstallationId?: string
+  previewBaseUrl?: string
 }
 
 type CandidateOverviewOptions = {
@@ -153,7 +154,8 @@ export const candidateService = {
 
       const queuedRun = await pipelineService.enqueuePipelineRun({
         submissionId: updatedSubmission.id,
-        trigger: 'submission'
+        trigger: 'submission',
+        previewBaseUrl: input.previewBaseUrl
       })
 
       return {
@@ -186,7 +188,8 @@ export const candidateService = {
 
     const queuedRun = await pipelineService.enqueuePipelineRun({
       submissionId: createdSubmission.id,
-      trigger: 'submission'
+      trigger: 'submission',
+      previewBaseUrl: input.previewBaseUrl
     })
 
     return {
