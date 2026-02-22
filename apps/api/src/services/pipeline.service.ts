@@ -95,6 +95,7 @@ type SubmissionPipelineView = {
 }
 
 type PackageManager = 'pnpm' | 'yarn' | 'npm'
+type PreviewExposureMode = 'port' | 'subdomain'
 
 type PackageJsonShape = {
   scripts?: Record<string, string>
@@ -304,6 +305,50 @@ const resolveStartCommand = (packageManager: PackageManager): string => {
   }
 
   return 'npm run start'
+}
+
+const getPreviewExposureMode = (): PreviewExposureMode => {
+  const configuredValue = (process.env.PIPELINE_PREVIEW_EXPOSURE_MODE ?? 'port')
+    .trim()
+    .toLowerCase()
+
+  if (configuredValue === 'port' || configuredValue === 'subdomain') {
+    return configuredValue
+  }
+
+  throw new PipelineExecutionError(
+    'deploy',
+    'PIPELINE_PREVIEW_EXPOSURE_MODE must be either "port" or "subdomain".'
+  )
+}
+
+const getPreviewBaseDomain = (): string => {
+  const configuredValue = (process.env.PIPELINE_PREVIEW_BASE_DOMAIN ?? '').trim().toLowerCase()
+  const normalizedDomain = configuredValue.replace(/^\*\./, '')
+
+  if (!normalizedDomain) {
+    throw new PipelineExecutionError(
+      'deploy',
+      'PIPELINE_PREVIEW_BASE_DOMAIN is required when PIPELINE_PREVIEW_EXPOSURE_MODE=subdomain.'
+    )
+  }
+
+  if (!/^[a-z0-9.-]+$/.test(normalizedDomain) || normalizedDomain.includes('..')) {
+    throw new PipelineExecutionError('deploy', 'PIPELINE_PREVIEW_BASE_DOMAIN is invalid.')
+  }
+
+  return normalizedDomain
+}
+
+const getPreviewSubdomainUrl = (submissionId: string): string => {
+  const baseDomain = getPreviewBaseDomain()
+  const submissionSuffix = normalizeIdentifier(submissionId).slice(0, 32)
+
+  if (submissionSuffix.length === 0) {
+    throw new PipelineExecutionError('deploy', 'Unable to derive preview subdomain from submission.')
+  }
+
+  return `https://preview-${submissionSuffix}.${baseDomain}`
 }
 
 const getConfiguredPreviewBaseUrl = (): URL => {
@@ -656,12 +701,11 @@ const runPipeline = async (runId: string): Promise<void> => {
 
     let deploymentUrl = ''
     const deploymentMode = (process.env.PIPELINE_DEPLOYMENT_MODE ?? 'docker').toLowerCase()
+    const previewExposureMode = getPreviewExposureMode()
 
     if (deploymentMode === 'docker') {
       const containerName = toContainerName(runRecord.submissionId)
       const imageTag = toImageTag(runId)
-      const preferredPort = parsePortFromUrl(runRecord.submissionDeployedUrl)
-      const hostPort = await pickPreviewPort(preferredPort)
       const dockerfilePath = path.join(repositoryDirectory, '.hiring-engine.Dockerfile')
 
       await ensureDockerIgnore(repositoryDirectory)
@@ -691,34 +735,90 @@ const runPipeline = async (runId: string): Promise<void> => {
         args: ['rm', '-f', containerName]
       })
 
-      await runCommand({
-        stage: 'deploy',
-        runId,
-        cwd: repositoryDirectory,
-        command: 'docker',
-        args: [
-          'run',
-          '-d',
-          '--name',
-          containerName,
-          '-e',
-          'PORT=3000',
-          '-p',
-          `${hostPort}:3000`,
-          imageTag
-        ]
-      })
+      if (previewExposureMode === 'subdomain') {
+        const deploymentSubdomainUrl = getPreviewSubdomainUrl(runRecord.submissionId)
+        const deploymentHost = new URL(deploymentSubdomainUrl).host
+        const routeSuffix = normalizeIdentifier(runRecord.submissionId).slice(0, 20)
+        const routerName = `he-preview-${routeSuffix}`
+        const serviceName = `he-preview-svc-${routeSuffix}`
+        const traefikEntrypoints =
+          (process.env.PIPELINE_PREVIEW_TRAEFIK_ENTRYPOINTS ?? 'websecure').trim() || 'websecure'
+        const previewDockerNetwork = process.env.PIPELINE_PREVIEW_DOCKER_NETWORK?.trim()
+        if (!previewDockerNetwork) {
+          throw new PipelineExecutionError(
+            'deploy',
+            'PIPELINE_PREVIEW_DOCKER_NETWORK is required when PIPELINE_PREVIEW_EXPOSURE_MODE=subdomain.'
+          )
+        }
 
-      deploymentUrl = buildPreviewUrl(hostPort, {
-        queuedPreviewBaseUrl: queuedPreviewBaseUrlForRun,
-        previousDeploymentUrl: runRecord.submissionDeployedUrl
-      })
-      await appendBuildLog(
-        runId,
-        'deploy',
-        'info',
-        `Docker deployment started in container ${containerName} on port ${hostPort}.`
-      )
+        const dockerRunArgs = ['run', '-d', '--name', containerName, '-e', 'PORT=3000']
+        dockerRunArgs.push('--network', previewDockerNetwork)
+        dockerRunArgs.push('--label', `traefik.docker.network=${previewDockerNetwork}`)
+
+        dockerRunArgs.push(
+          '--label',
+          'traefik.enable=true',
+          '--label',
+          `traefik.http.routers.${routerName}.rule=Host(\`${deploymentHost}\`)`,
+          '--label',
+          `traefik.http.routers.${routerName}.entrypoints=${traefikEntrypoints}`,
+          '--label',
+          `traefik.http.routers.${routerName}.tls=true`,
+          '--label',
+          `traefik.http.routers.${routerName}.service=${serviceName}`,
+          '--label',
+          `traefik.http.services.${serviceName}.loadbalancer.server.port=3000`,
+          imageTag
+        )
+
+        await runCommand({
+          stage: 'deploy',
+          runId,
+          cwd: repositoryDirectory,
+          command: 'docker',
+          args: dockerRunArgs
+        })
+
+        deploymentUrl = deploymentSubdomainUrl
+        await appendBuildLog(
+          runId,
+          'deploy',
+          'info',
+          `Docker deployment started in container ${containerName} with hostname ${deploymentHost}.`
+        )
+      } else {
+        const preferredPort = parsePortFromUrl(runRecord.submissionDeployedUrl)
+        const hostPort = await pickPreviewPort(preferredPort)
+
+        await runCommand({
+          stage: 'deploy',
+          runId,
+          cwd: repositoryDirectory,
+          command: 'docker',
+          args: [
+            'run',
+            '-d',
+            '--name',
+            containerName,
+            '-e',
+            'PORT=3000',
+            '-p',
+            `${hostPort}:3000`,
+            imageTag
+          ]
+        })
+
+        deploymentUrl = buildPreviewUrl(hostPort, {
+          queuedPreviewBaseUrl: queuedPreviewBaseUrlForRun,
+          previousDeploymentUrl: runRecord.submissionDeployedUrl
+        })
+        await appendBuildLog(
+          runId,
+          'deploy',
+          'info',
+          `Docker deployment started in container ${containerName} on port ${hostPort}.`
+        )
+      }
     } else {
       const deploymentBaseUrl = withNoTrailingSlash(
         process.env.PIPELINE_DEPLOYMENT_BASE_URL ?? 'https://preview.hiring-engine.local'

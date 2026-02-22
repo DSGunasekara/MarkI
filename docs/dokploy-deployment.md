@@ -58,7 +58,11 @@ Optional but recommended:
 
 Pipeline controls:
 - `PIPELINE_DEPLOYMENT_MODE`
+- `PIPELINE_PREVIEW_EXPOSURE_MODE`
 - `PIPELINE_PREVIEW_BASE_URL`
+- `PIPELINE_PREVIEW_BASE_DOMAIN`
+- `PIPELINE_PREVIEW_DOCKER_NETWORK`
+- `PIPELINE_PREVIEW_TRAEFIK_ENTRYPOINTS`
 - `PIPELINE_PREVIEW_PORT_MIN`
 - `PIPELINE_PREVIEW_PORT_MAX`
 - `PIPELINE_DEPLOYMENT_BASE_URL`
@@ -80,3 +84,9 @@ Pipeline controls:
 6. Convert PEM to single-line base64 before setting `GITHUB_APP_PRIVATE_KEY_BASE64`, for example:
    - `base64 < github-app-private-key.pem | tr -d '\n'`
 7. If you still use `docker-compose.yml`, set `API_PORT` to an unused host port to avoid `port is already allocated`.
+8. For production previews, prefer subdomain exposure (no public high ports):
+   - set `PIPELINE_PREVIEW_EXPOSURE_MODE=subdomain`
+   - set `PIPELINE_PREVIEW_BASE_DOMAIN` to a wildcard-capable domain suffix (example: `preview.example.com`)
+   - configure DNS `*.preview.example.com` to your Dokploy ingress/load balancer
+   - ensure wildcard TLS is available for `*.preview.example.com`
+   - set `PIPELINE_PREVIEW_DOCKER_NETWORK` to the proxy-visible Docker network (for Dokploy this is commonly `dokploy-network`)

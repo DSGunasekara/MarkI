@@ -58,8 +58,9 @@ Flow:
 ### `PIPELINE_DEPLOYMENT_MODE=docker` (default)
 - Builds a Docker image for the submitted repository.
 - Replaces the active container for that submission.
-- Publishes container port `3000` to an allocated host port in `PIPELINE_PREVIEW_PORT_MIN..PIPELINE_PREVIEW_PORT_MAX`.
-- Generates preview URL from `PIPELINE_PREVIEW_BASE_URL` + allocated port.
+- Preview exposure strategy is controlled by `PIPELINE_PREVIEW_EXPOSURE_MODE`:
+  - `port` (local/dev): publishes container port `3000` to an allocated host port in `PIPELINE_PREVIEW_PORT_MIN..PIPELINE_PREVIEW_PORT_MAX`, then generates URL from `PIPELINE_PREVIEW_BASE_URL`.
+  - `subdomain` (production): does **not** publish host ports. Container is started with reverse-proxy labels and URL is generated as `https://preview-<submission>.<PIPELINE_PREVIEW_BASE_DOMAIN>`.
 
 ### `PIPELINE_DEPLOYMENT_MODE=simulated`
 - Keeps compatibility mode where deployment URL is generated without starting a container.
@@ -122,7 +123,11 @@ Add to API environment:
 - `GITHUB_APP_WEBHOOK_SECRET`
 - `GITHUB_WEBHOOK_SECRET` (legacy fallback)
 - `PIPELINE_DEPLOYMENT_MODE` (`docker` or `simulated`)
+- `PIPELINE_PREVIEW_EXPOSURE_MODE` (`port` or `subdomain`)
 - `PIPELINE_PREVIEW_BASE_URL` (base URL for Docker preview links)
+- `PIPELINE_PREVIEW_BASE_DOMAIN` (wildcard domain suffix for subdomain exposure mode)
+- `PIPELINE_PREVIEW_DOCKER_NETWORK` (Docker network used by preview containers in subdomain mode)
+- `PIPELINE_PREVIEW_TRAEFIK_ENTRYPOINTS` (proxy entrypoints used for subdomain routers; defaults to `websecure`)
 - `PIPELINE_PREVIEW_PORT_MIN` (minimum host preview port)
 - `PIPELINE_PREVIEW_PORT_MAX` (maximum host preview port)
 - `PIPELINE_DEPLOYMENT_BASE_URL` (simulated mode URL base)
