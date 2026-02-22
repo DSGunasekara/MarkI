@@ -30,6 +30,44 @@ type CandidateSubmissionLogsQuery = {
   runId?: string
 }
 
+const toFirstHeaderValue = (value?: string): string | null => {
+  if (!value) {
+    return null
+  }
+
+  const [firstValue] = value.split(',')
+  const normalizedValue = firstValue?.trim()
+  return normalizedValue && normalizedValue.length > 0 ? normalizedValue : null
+}
+
+const resolveRequestOrigin = (c: CandidateContext): string | null => {
+  const originHeader = toFirstHeaderValue(c.req.header('origin'))
+  if (originHeader) {
+    try {
+      return new URL(originHeader).origin
+    } catch {
+      // Ignore invalid user-provided origin header and fall back.
+    }
+  }
+
+  const forwardedHost = toFirstHeaderValue(c.req.header('x-forwarded-host'))
+  const forwardedProto = toFirstHeaderValue(c.req.header('x-forwarded-proto'))
+  const normalizedForwardedProto = forwardedProto?.toLowerCase().replace(/:$/, '')
+
+  if (
+    forwardedHost &&
+    (normalizedForwardedProto === 'http' || normalizedForwardedProto === 'https')
+  ) {
+    return `${normalizedForwardedProto}://${forwardedHost}`
+  }
+
+  try {
+    return new URL(c.req.url).origin
+  } catch {
+    return null
+  }
+}
+
 export const candidateController = {
   createSubmission: async (c: CandidateContext, payload: CreateSubmissionPayload) => {
     const user = c.get('user')
@@ -50,7 +88,8 @@ export const candidateController = {
         joinCode: payload.joinCode,
         repositoryUrl: payload.repositoryUrl,
         repositoryFullName: payload.repositoryFullName,
-        githubInstallationId: payload.githubInstallationId
+        githubInstallationId: payload.githubInstallationId,
+        previewBaseUrl: resolveRequestOrigin(c) ?? undefined
       })
     } catch (error: unknown) {
       if (error instanceof GitHubApiError) {

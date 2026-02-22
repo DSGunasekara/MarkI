@@ -42,6 +42,7 @@ type TriggerPipelineInput = {
   trigger: PipelineTrigger
   branch?: string | null
   commitSha?: string | null
+  previewBaseUrl?: string
 }
 
 type GitHubPushEventInput = {
@@ -113,6 +114,7 @@ class PipelineExecutionError extends Error {
 
 const runQueue: string[] = []
 const queuedRunIdSet = new Set<string>()
+const queuedRunPreviewBaseUrl = new Map<string, string>()
 let isRunWorkerActive = false
 
 const toLowerCaseFullName = (value: string): string => {
@@ -184,6 +186,22 @@ const parsePortFromUrl = (value: string | null): number | null => {
   } catch {
     return null
   }
+}
+
+const toNormalizedOrigin = (value: string): string | null => {
+  try {
+    return new URL(value).origin
+  } catch {
+    return null
+  }
+}
+
+const parseOriginFromUrl = (value: string | null): string | null => {
+  if (!value) {
+    return null
+  }
+
+  return toNormalizedOrigin(value)
 }
 
 const isPortAvailable = async (port: number): Promise<boolean> => {
@@ -288,18 +306,34 @@ const resolveStartCommand = (packageManager: PackageManager): string => {
   return 'npm run start'
 }
 
-const getPreviewBaseUrl = (): URL => {
-  const configuredValue = process.env.PIPELINE_PREVIEW_BASE_URL ?? 'http://localhost'
+const getConfiguredPreviewBaseUrl = (): URL => {
+  const configuredValue =
+    process.env.PIPELINE_PREVIEW_BASE_URL ?? process.env.BETTER_AUTH_URL ?? 'http://localhost'
+  const normalizedOrigin = toNormalizedOrigin(configuredValue)
 
-  try {
-    return new URL(configuredValue)
-  } catch {
-    throw new PipelineExecutionError('deploy', 'PIPELINE_PREVIEW_BASE_URL is not a valid URL.')
+  if (!normalizedOrigin) {
+    throw new PipelineExecutionError(
+      'deploy',
+      'PIPELINE_PREVIEW_BASE_URL (or BETTER_AUTH_URL fallback) is not a valid URL.'
+    )
   }
+
+  return new URL(normalizedOrigin)
 }
 
-const buildPreviewUrl = (port: number): string => {
-  const baseUrl = getPreviewBaseUrl()
+const buildPreviewUrl = (
+  port: number,
+  input?: {
+    queuedPreviewBaseUrl?: string | null
+    previousDeploymentUrl?: string | null
+  }
+): string => {
+  const baseOrigin =
+    input?.queuedPreviewBaseUrl ??
+    parseOriginFromUrl(input?.previousDeploymentUrl ?? null) ??
+    getConfiguredPreviewBaseUrl().toString()
+
+  const baseUrl = new URL(baseOrigin)
   baseUrl.port = String(port)
   return withNoTrailingSlash(baseUrl.toString())
 }
@@ -483,6 +517,9 @@ const ensureNextJsProject = (packageJson: PackageJsonShape): boolean => {
 }
 
 const runPipeline = async (runId: string): Promise<void> => {
+  const queuedPreviewBaseUrlForRun = queuedRunPreviewBaseUrl.get(runId) ?? null
+  queuedRunPreviewBaseUrl.delete(runId)
+
   const [runRecord] = await db
     .select({
       id: buildRuns.id,
@@ -672,7 +709,10 @@ const runPipeline = async (runId: string): Promise<void> => {
         ]
       })
 
-      deploymentUrl = buildPreviewUrl(hostPort)
+      deploymentUrl = buildPreviewUrl(hostPort, {
+        queuedPreviewBaseUrl: queuedPreviewBaseUrlForRun,
+        previousDeploymentUrl: runRecord.submissionDeployedUrl
+      })
       await appendBuildLog(
         runId,
         'deploy',
@@ -929,6 +969,22 @@ export const pipelineService = {
       throw new Error('Unable to enqueue a pipeline run.')
     }
 
+    const normalizedPreviewBaseUrl =
+      typeof input.previewBaseUrl === 'string'
+        ? toNormalizedOrigin(input.previewBaseUrl)
+        : null
+
+    if (normalizedPreviewBaseUrl) {
+      queuedRunPreviewBaseUrl.set(createdRun.id, normalizedPreviewBaseUrl)
+    } else if (input.previewBaseUrl) {
+      await appendBuildLog(
+        createdRun.id,
+        'system',
+        'warn',
+        'Provided preview base URL was invalid. Falling back to deployment defaults.'
+      )
+    }
+
     await appendBuildLog(
       createdRun.id,
       'system',
@@ -946,7 +1002,8 @@ export const pipelineService = {
 
     const matchingSubmissions = await db
       .select({
-        id: submissions.id
+        id: submissions.id,
+        deployedUrl: submissions.deployedUrl
       })
       .from(submissions)
       .where(eq(submissions.repositoryFullName, normalizedFullName))
@@ -982,7 +1039,8 @@ export const pipelineService = {
         submissionId: submissionRecord.id,
         trigger: 'push',
         branch: input.branch,
-        commitSha: input.commitSha
+        commitSha: input.commitSha,
+        previewBaseUrl: submissionRecord.deployedUrl ?? undefined
       })
       queuedRuns += 1
     }
