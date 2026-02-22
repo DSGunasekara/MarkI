@@ -40,8 +40,16 @@ export type DashboardAssignment = {
 export type DashboardSubmissionStatus = "pending" | "building" | "deployed" | "failed"
 export type PipelineRunStatus = "queued" | "running" | "deployed" | "failed"
 export type PipelineRunTrigger = "submission" | "push"
-export type PipelineLogStage = "system" | "clone" | "validate" | "install" | "build" | "deploy"
+export type PipelineLogStage =
+  | "system"
+  | "clone"
+  | "validate"
+  | "install"
+  | "build"
+  | "deploy"
+  | "analyze"
 export type PipelineLogLevel = "info" | "warn" | "error"
+export type AiReportStatus = "pending" | "completed" | "failed"
 
 export type DashboardSubmission = {
   id: string
@@ -161,6 +169,37 @@ export type SubmissionPipelineView = {
   logs: SubmissionPipelineLog[]
 }
 
+export type EmployerAiReportMessage = {
+  id: string
+  role: "employer" | "assistant"
+  message: string
+  createdAt: string
+}
+
+export type EmployerAiReport = {
+  id: string
+  status: AiReportStatus
+  model: string | null
+  projectOverview: string | null
+  notableStructure: string | null
+  engineeringStrengths: string[]
+  risksOrConcerns: string[]
+  suggestedQuestions: string[]
+  failureReason: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type EmployerSubmissionAiReportView = {
+  submission: {
+    submissionId: string
+    assignmentTitle: string
+    repositoryUrl: string
+  }
+  report: EmployerAiReport | null
+  messages: EmployerAiReportMessage[]
+}
+
 export type CandidateOverview = {
   metrics: {
     submissionCount: number
@@ -252,6 +291,16 @@ type GitHubInstallationRepositoriesEnvelope = {
   data: {
     installationId: string | null
     repositories: GitHubInstallationRepository[]
+  }
+}
+
+type EmployerAiReportEnvelope = {
+  data: EmployerSubmissionAiReportView
+}
+
+type EmployerAiQuestionEnvelope = {
+  data: {
+    answer: string
   }
 }
 
@@ -461,6 +510,30 @@ export const dashboardApi = {
         : `/api/dashboard/submissions/${input.submissionId}/logs`
 
     const payload = await request<SubmissionPipelineEnvelope>(path)
+    return payload.data
+  },
+
+  getSubmissionAiReport: async (submissionId: string): Promise<EmployerSubmissionAiReportView> => {
+    const payload = await request<EmployerAiReportEnvelope>(
+      `/api/dashboard/submissions/${submissionId}/ai-report`
+    )
+    return payload.data
+  },
+
+  askSubmissionAiQuestion: async (input: {
+    submissionId: string
+    question: string
+  }): Promise<{ answer: string }> => {
+    const payload = await request<EmployerAiQuestionEnvelope>(
+      `/api/dashboard/submissions/${input.submissionId}/ai-report/questions`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          question: input.question
+        })
+      }
+    )
+
     return payload.data
   }
 }

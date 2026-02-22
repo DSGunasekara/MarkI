@@ -14,11 +14,12 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { aiReportService } from './ai-report.service.js'
 import { githubAppService } from './github-app.service.js'
 
 type PipelineTrigger = 'submission' | 'push'
 type PipelineRunStatus = 'queued' | 'running' | 'deployed' | 'failed'
-type PipelineLogStage = 'system' | 'clone' | 'validate' | 'install' | 'build' | 'deploy'
+type PipelineLogStage = 'system' | 'clone' | 'validate' | 'install' | 'build' | 'deploy' | 'analyze'
 type PipelineLogLevel = 'info' | 'warn' | 'error'
 
 type RepositoryMetadata = {
@@ -506,7 +507,9 @@ const runPipeline = async (runId: string): Promise<void> => {
   }
 
   let tempRootPath: string | null = null
+  let repositoryDirectory: string | null = null
   let resolvedCommitSha = runRecord.commitSha ?? null
+  let didAttemptAiReport = false
 
   await db
     .update(buildRuns)
@@ -526,7 +529,7 @@ const runPipeline = async (runId: string): Promise<void> => {
 
   try {
     tempRootPath = await mkdtemp(path.join(tmpdir(), 'hiring-engine-run-'))
-    const repositoryDirectory = path.join(tempRootPath, 'repo')
+    repositoryDirectory = path.join(tempRootPath, 'repo')
     const cloneTargetBranch = runRecord.branch ?? runRecord.submissionRepositoryDefaultBranch
     let cloneSource = runRecord.submissionRepositoryUrl
     let cloneSourceLabel = runRecord.submissionRepositoryUrl
@@ -691,6 +694,26 @@ const runPipeline = async (runId: string): Promise<void> => {
 
     await appendBuildLog(runId, 'deploy', 'info', `Deployment ready at ${deploymentUrl}`)
 
+    await appendBuildLog(runId, 'analyze', 'info', 'Generating AI performance report...')
+    didAttemptAiReport = true
+    try {
+      await aiReportService.generateReportForSubmission({
+        submissionId: runRecord.submissionId,
+        buildRunId: runId,
+        repositoryDirectory
+      })
+      await appendBuildLog(runId, 'analyze', 'info', 'AI performance report generated.')
+    } catch (error: unknown) {
+      const reportErrorMessage =
+        error instanceof Error ? error.message : 'Unknown AI report error.'
+      await appendBuildLog(
+        runId,
+        'analyze',
+        'warn',
+        `AI report generation failed: ${reportErrorMessage}`
+      )
+    }
+
     const completedAt = new Date()
 
     await db
@@ -716,6 +739,39 @@ const runPipeline = async (runId: string): Promise<void> => {
       error instanceof Error ? error.message : 'Unexpected pipeline failure.'
 
     await appendBuildLog(runId, stage, 'error', message)
+
+    if (repositoryDirectory && !didAttemptAiReport) {
+      await appendBuildLog(
+        runId,
+        'analyze',
+        'info',
+        'Attempting AI performance report despite pipeline failure...'
+      )
+      didAttemptAiReport = true
+
+      try {
+        await aiReportService.generateReportForSubmission({
+          submissionId: runRecord.submissionId,
+          buildRunId: runId,
+          repositoryDirectory
+        })
+        await appendBuildLog(
+          runId,
+          'analyze',
+          'info',
+          'AI performance report generated for failed pipeline run.'
+        )
+      } catch (aiError: unknown) {
+        const aiErrorMessage =
+          aiError instanceof Error ? aiError.message : 'Unknown AI report error.'
+        await appendBuildLog(
+          runId,
+          'analyze',
+          'warn',
+          `AI report generation failed after pipeline failure: ${aiErrorMessage}`
+        )
+      }
+    }
 
     await db
       .update(buildRuns)

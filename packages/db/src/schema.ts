@@ -26,13 +26,16 @@ export const buildRunStatusEnum = pgEnum('build_run_status', [
   'deployed',
   'failed'
 ])
+export const aiReportStatusEnum = pgEnum('ai_report_status', ['pending', 'completed', 'failed'])
+export const aiReportMessageRoleEnum = pgEnum('ai_report_message_role', ['employer', 'assistant'])
 export const buildLogStageEnum = pgEnum('build_log_stage', [
   'system',
   'clone',
   'validate',
   'install',
   'build',
-  'deploy'
+  'deploy',
+  'analyze'
 ])
 export const buildLogLevelEnum = pgEnum('build_log_level', ['info', 'warn', 'error'])
 
@@ -208,6 +211,54 @@ export const buildLogs = pgTable(
   ]
 )
 
+export const aiReports = pgTable(
+  'ai_reports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    submissionId: uuid('submission_id')
+      .notNull()
+      .references(() => submissions.id, { onDelete: 'cascade' }),
+    buildRunId: uuid('build_run_id').references(() => buildRuns.id, { onDelete: 'set null' }),
+    status: aiReportStatusEnum('status').notNull().default('pending'),
+    model: text('model'),
+    projectOverview: text('project_overview'),
+    notableStructure: text('notable_structure'),
+    engineeringStrengths: text('engineering_strengths').array().notNull().default([]),
+    risksOrConcerns: text('risks_or_concerns').array().notNull().default([]),
+    suggestedQuestions: text('suggested_questions').array().notNull().default([]),
+    analysisContext: text('analysis_context'),
+    rawResponse: text('raw_response'),
+    failureReason: text('failure_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date())
+  },
+  (table) => [
+    index('ai_report_submission_id_idx').on(table.submissionId),
+    index('ai_report_build_run_id_idx').on(table.buildRunId),
+    index('ai_report_created_at_idx').on(table.createdAt)
+  ]
+)
+
+export const aiReportMessages = pgTable(
+  'ai_report_messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    aiReportId: uuid('ai_report_id')
+      .notNull()
+      .references(() => aiReports.id, { onDelete: 'cascade' }),
+    role: aiReportMessageRoleEnum('role').notNull(),
+    message: text('message').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow()
+  },
+  (table) => [
+    index('ai_report_message_report_id_idx').on(table.aiReportId),
+    index('ai_report_message_created_at_idx').on(table.createdAt)
+  ]
+)
+
 export const userRelations = relations(user, ({ many }) => ({
   assignments: many(assignments),
   submissions: many(submissions)
@@ -238,7 +289,8 @@ export const buildRunRelations = relations(buildRuns, ({ one, many }) => ({
     fields: [buildRuns.submissionId],
     references: [submissions.id]
   }),
-  logs: many(buildLogs)
+  logs: many(buildLogs),
+  aiReports: many(aiReports)
 }))
 
 export const buildLogRelations = relations(buildLogs, ({ one }) => ({
@@ -248,11 +300,32 @@ export const buildLogRelations = relations(buildLogs, ({ one }) => ({
   })
 }))
 
+export const aiReportRelations = relations(aiReports, ({ one, many }) => ({
+  submission: one(submissions, {
+    fields: [aiReports.submissionId],
+    references: [submissions.id]
+  }),
+  buildRun: one(buildRuns, {
+    fields: [aiReports.buildRunId],
+    references: [buildRuns.id]
+  }),
+  messages: many(aiReportMessages)
+}))
+
+export const aiReportMessageRelations = relations(aiReportMessages, ({ one }) => ({
+  report: one(aiReports, {
+    fields: [aiReportMessages.aiReportId],
+    references: [aiReports.id]
+  })
+}))
+
 export const userSelectSchema = createSelectSchema(user)
 export const assignmentSelectSchema = createSelectSchema(assignments)
 export const submissionSelectSchema = createSelectSchema(submissions)
 export const buildRunSelectSchema = createSelectSchema(buildRuns)
 export const buildLogSelectSchema = createSelectSchema(buildLogs)
+export const aiReportSelectSchema = createSelectSchema(aiReports)
+export const aiReportMessageSelectSchema = createSelectSchema(aiReportMessages)
 
 export const createAssignmentSchema = createInsertSchema(assignments, {
   title: z.string().min(3).max(150),
@@ -271,4 +344,6 @@ export type Assignment = typeof assignments.$inferSelect
 export type Submission = typeof submissions.$inferSelect
 export type BuildRun = typeof buildRuns.$inferSelect
 export type BuildLog = typeof buildLogs.$inferSelect
+export type AiReport = typeof aiReports.$inferSelect
+export type AiReportMessage = typeof aiReportMessages.$inferSelect
 export type NewAssignment = z.infer<typeof createAssignmentSchema>

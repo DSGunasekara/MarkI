@@ -1,5 +1,6 @@
 import type { Context } from 'hono'
 
+import { aiReportService } from '../services/ai-report.service.js'
 import { dashboardService } from '../services/dashboard.service.js'
 import { pipelineService } from '../services/pipeline.service.js'
 import type { AppBindings } from '../types/hono.js'
@@ -26,6 +27,14 @@ type DashboardSubmissionLogsParams = {
 
 type DashboardSubmissionLogsQuery = {
   runId?: string
+}
+
+type DashboardSubmissionReportParams = {
+  submissionId: string
+}
+
+type DashboardSubmissionQuestionPayload = {
+  question: string
 }
 
 export const dashboardController = {
@@ -111,5 +120,77 @@ export const dashboardController = {
     return c.json({
       data: pipelineView
     })
+  },
+
+  submissionReport: async (c: DashboardContext, params: DashboardSubmissionReportParams) => {
+    const user = c.get('user')
+
+    if (!user) {
+      return c.json(
+        {
+          message: 'Authentication required.'
+        },
+        401
+      )
+    }
+
+    const reportView = await aiReportService.getEmployerSubmissionReport(user.id, params.submissionId)
+    if (!reportView) {
+      return c.json(
+        {
+          message: 'Submission not found.'
+        },
+        404
+      )
+    }
+
+    return c.json({
+      data: reportView
+    })
+  },
+
+  submissionQuestion: async (
+    c: DashboardContext,
+    params: DashboardSubmissionReportParams,
+    payload: DashboardSubmissionQuestionPayload
+  ) => {
+    const user = c.get('user')
+
+    if (!user) {
+      return c.json(
+        {
+          message: 'Authentication required.'
+        },
+        401
+      )
+    }
+
+    try {
+      const answer = await aiReportService.answerEmployerQuestion({
+        employerId: user.id,
+        submissionId: params.submissionId,
+        question: payload.question
+      })
+
+      if (!answer) {
+        return c.json(
+          {
+            message: 'Submission not found.'
+          },
+          404
+        )
+      }
+
+      return c.json({
+        data: answer
+      })
+    } catch (error: unknown) {
+      return c.json(
+        {
+          message: error instanceof Error ? error.message : 'Unable to answer question.'
+        },
+        400
+      )
+    }
   }
 }

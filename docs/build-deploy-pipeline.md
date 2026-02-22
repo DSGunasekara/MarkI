@@ -28,7 +28,7 @@ Only Next.js repositories are accepted.
 
 ### `build_logs`
 - `build_run_id`
-- `stage` (`system` | `clone` | `validate` | `install` | `build` | `deploy`)
+- `stage` (`system` | `clone` | `validate` | `install` | `build` | `deploy` | `analyze`)
 - `level` (`info` | `warn` | `error`)
 - `message`
 - `created_at`
@@ -46,6 +46,8 @@ Flow:
    - install dependencies (pnpm/yarn/npm detection)
    - run build
    - deploy preview
+   - generate AI performance report
+   - if run fails after clone, attempt AI report generation before final failure status
 4. Each stage writes logs to `build_logs`.
 5. Submission status updates:
    - `building` during run
@@ -124,6 +126,8 @@ Add to API environment:
 - `PIPELINE_PREVIEW_PORT_MAX` (maximum host preview port)
 - `PIPELINE_DEPLOYMENT_BASE_URL` (simulated mode URL base)
 - `PIPELINE_COMMAND_TIMEOUT_MS` (per command timeout)
+- `OPENAI_API_KEY` (required for LLM report generation)
+- `OPENAI_MODEL` (optional; defaults to `gpt-4.1-mini`)
 
 ## Notes
 - Docker deployment requires Docker daemon access from the API process.

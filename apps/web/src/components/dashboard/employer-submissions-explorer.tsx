@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { RefreshCwIcon } from "lucide-react"
+import { RefreshCwIcon, SparklesIcon } from "lucide-react"
 
 import { WorkspaceShell } from "@/components/shared/workspace-shell"
 import { Badge } from "@/components/ui/badge"
@@ -22,10 +22,13 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import {
   dashboardApi,
   toErrorMessage,
+  type AiReportStatus,
   type DashboardSubmissionStatus,
+  type EmployerSubmissionAiReportView,
   type EmployerSubmissionExplorer,
   type EmployerSubmissionsSort,
   type SessionUser
@@ -66,6 +69,12 @@ const statusBadgeVariantMap: Record<DashboardSubmissionStatus, SubmissionBadgeVa
   failed: "destructive"
 }
 
+const aiReportStatusBadgeVariantMap: Record<AiReportStatus, SubmissionBadgeVariant> = {
+  pending: "outline",
+  completed: "default",
+  failed: "destructive"
+}
+
 const formatDateTime = (value: string): string => {
   return new Date(value).toLocaleString()
 }
@@ -99,6 +108,12 @@ export function EmployerSubmissionsExplorer({
   const [pipelineView, setPipelineView] = useState<Awaited<
     ReturnType<typeof dashboardApi.getSubmissionLogs>
   > | null>(null)
+  const [activeAiSubmissionId, setActiveAiSubmissionId] = useState<string | null>(null)
+  const [aiReportErrorMessage, setAiReportErrorMessage] = useState<string | null>(null)
+  const [isLoadingAiReport, setIsLoadingAiReport] = useState(false)
+  const [isAskingAiQuestion, setIsAskingAiQuestion] = useState(false)
+  const [aiQuestionDraft, setAiQuestionDraft] = useState("")
+  const [aiReportView, setAiReportView] = useState<EmployerSubmissionAiReportView | null>(null)
 
   const fetchExplorerData = useCallback(async (mode: LoadMode) => {
     if (mode === "initial") {
@@ -201,6 +216,8 @@ export function EmployerSubmissionsExplorer({
     return offset + explorerData.submissions.length < explorerData.totalSubmissions
   }, [explorerData, offset])
 
+  const canAskAiQuestion = aiReportView?.report?.status === "completed"
+
   const handleApplyFilters = () => {
     setOffset(0)
     setActiveFilters(draftFilters)
@@ -232,6 +249,46 @@ export function EmployerSubmissionsExplorer({
     },
     []
   )
+
+  const loadSubmissionAiReport = useCallback(async (submissionId: string) => {
+    setActiveAiSubmissionId(submissionId)
+    setIsLoadingAiReport(true)
+    setAiReportErrorMessage(null)
+
+    try {
+      const response = await dashboardApi.getSubmissionAiReport(submissionId)
+      setAiReportView(response)
+    } catch (error: unknown) {
+      setAiReportErrorMessage(toErrorMessage(error))
+      setAiReportView(null)
+    } finally {
+      setIsLoadingAiReport(false)
+    }
+  }, [])
+
+  const handleAskAiQuestion = useCallback(async () => {
+    const question = aiQuestionDraft.trim()
+    if (!activeAiSubmissionId || question.length === 0) {
+      return
+    }
+
+    setIsAskingAiQuestion(true)
+    setAiReportErrorMessage(null)
+
+    try {
+      await dashboardApi.askSubmissionAiQuestion({
+        submissionId: activeAiSubmissionId,
+        question
+      })
+      setAiQuestionDraft("")
+      const refreshed = await dashboardApi.getSubmissionAiReport(activeAiSubmissionId)
+      setAiReportView(refreshed)
+    } catch (error: unknown) {
+      setAiReportErrorMessage(toErrorMessage(error))
+    } finally {
+      setIsAskingAiQuestion(false)
+    }
+  }, [activeAiSubmissionId, aiQuestionDraft])
 
   return (
     <WorkspaceShell
@@ -431,6 +488,7 @@ export function EmployerSubmissionsExplorer({
                           <th className="px-3 py-2 font-medium">Created</th>
                           <th className="px-3 py-2 font-medium">Updated</th>
                           <th className="px-3 py-2 font-medium">Logs</th>
+                          <th className="px-3 py-2 font-medium">AI report</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -481,6 +539,18 @@ export function EmployerSubmissionsExplorer({
                                 }}
                               >
                                 View logs
+                              </Button>
+                            </td>
+                            <td className="px-3 py-3">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  void loadSubmissionAiReport(submission.id)
+                                }}
+                              >
+                                <SparklesIcon />
+                                View report
                               </Button>
                             </td>
                           </tr>
@@ -574,6 +644,194 @@ export function EmployerSubmissionsExplorer({
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">No pipeline data available.</p>
+              )}
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {activeAiSubmissionId ? (
+          <Card className="app-panel">
+            <CardHeader>
+              <CardTitle>AI Performance Report</CardTitle>
+              <CardDescription>
+                Candidate analysis and employer follow-up Q&A grounded in repository evidence.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {aiReportErrorMessage ? (
+                <p className="text-sm text-destructive">{aiReportErrorMessage}</p>
+              ) : null}
+
+              {isLoadingAiReport ? (
+                <p className="text-sm text-muted-foreground">Loading AI report...</p>
+              ) : aiReportView ? (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-background/60 p-3">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">{aiReportView.submission.assignmentTitle}</p>
+                      <a
+                        href={toRepositoryHref(aiReportView.submission.repositoryUrl)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="line-clamp-1 text-xs text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground"
+                      >
+                        {aiReportView.submission.repositoryUrl}
+                      </a>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        void loadSubmissionAiReport(activeAiSubmissionId)
+                      }}
+                      disabled={isLoadingAiReport}
+                    >
+                      <RefreshCwIcon className={isLoadingAiReport ? "animate-spin" : ""} />
+                      Refresh report
+                    </Button>
+                  </div>
+
+                  {aiReportView.report ? (
+                    <div className="space-y-4 rounded-md border border-border bg-background/40 p-4">
+                      <div className="flex items-center gap-2">
+                        <p className="app-overline">Report status</p>
+                        <Badge variant={aiReportStatusBadgeVariantMap[aiReportView.report.status]}>
+                          {aiReportView.report.status}
+                        </Badge>
+                      </div>
+
+                      {aiReportView.report.status === "pending" ? (
+                        <p className="text-sm text-muted-foreground">
+                          Analysis is still running. Refresh in a moment to load the completed report.
+                        </p>
+                      ) : null}
+
+                      {aiReportView.report.status === "failed" ? (
+                        <p className="text-sm text-destructive">
+                          {aiReportView.report.failureReason ?? "Unable to generate the report."}
+                        </p>
+                      ) : null}
+
+                      {aiReportView.report.status === "completed" ? (
+                        <div className="space-y-4">
+                          <section className="space-y-1">
+                            <p className="app-overline">Project overview</p>
+                            <p className="text-sm text-foreground">{aiReportView.report.projectOverview}</p>
+                          </section>
+
+                          <section className="space-y-1">
+                            <p className="app-overline">Notable structure or changes</p>
+                            <p className="text-sm text-foreground">{aiReportView.report.notableStructure}</p>
+                          </section>
+
+                          <section className="space-y-2">
+                            <p className="app-overline">Engineering strengths</p>
+                            <ul className="space-y-1 text-sm text-foreground">
+                              {aiReportView.report.engineeringStrengths.map((strength) => (
+                                <li key={strength} className="rounded-md border border-border/70 bg-background/50 px-3 py-2">
+                                  {strength}
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+
+                          <section className="space-y-2">
+                            <p className="app-overline">Risks or concerns</p>
+                            <ul className="space-y-1 text-sm text-foreground">
+                              {aiReportView.report.risksOrConcerns.map((risk) => (
+                                <li key={risk} className="rounded-md border border-border/70 bg-background/50 px-3 py-2">
+                                  {risk}
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+
+                          <section className="space-y-2">
+                            <p className="app-overline">Suggested interview follow-up questions</p>
+                            <ul className="space-y-1 text-sm text-foreground">
+                              {aiReportView.report.suggestedQuestions.map((question) => (
+                                <li key={question} className="rounded-md border border-border/70 bg-background/50 px-3 py-2">
+                                  {question}
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No AI report is available yet for this submission.
+                    </p>
+                  )}
+
+                  <div className="space-y-3 rounded-md border border-border bg-background/40 p-4">
+                    <div>
+                      <p className="app-overline">Follow-up Q&A</p>
+                      <p className="text-sm text-muted-foreground">
+                        Ask free-form questions; answers are grounded in repository analysis and the generated report.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="ai-question">Your question</Label>
+                      <Textarea
+                        id="ai-question"
+                        value={aiQuestionDraft}
+                        onChange={(event) => {
+                          setAiQuestionDraft(event.target.value)
+                        }}
+                        placeholder="What trade-offs did the candidate make in architecture and performance?"
+                        className="min-h-20"
+                        disabled={!canAskAiQuestion || isAskingAiQuestion}
+                      />
+                      {!canAskAiQuestion ? (
+                        <p className="text-xs text-muted-foreground">
+                          Follow-up questions are available after a completed AI report.
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          void handleAskAiQuestion()
+                        }}
+                        disabled={
+                          !canAskAiQuestion || isAskingAiQuestion || aiQuestionDraft.trim().length === 0
+                        }
+                      >
+                        {isAskingAiQuestion ? "Asking..." : "Ask AI"}
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      {aiReportView.messages.length > 0 ? (
+                        aiReportView.messages.map((message) => (
+                          <div
+                            key={message.id}
+                            className="rounded-md border border-border/70 bg-background/50 px-3 py-2"
+                          >
+                            <p className="app-overline">
+                              {message.role === "assistant" ? "AI Assistant" : "Employer"} ·{" "}
+                              {new Date(message.createdAt).toLocaleString()}
+                            </p>
+                            <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">
+                              {message.message}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          No questions asked yet for this submission.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">No AI report data available.</p>
               )}
             </CardContent>
           </Card>

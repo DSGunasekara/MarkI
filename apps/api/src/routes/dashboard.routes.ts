@@ -28,6 +28,14 @@ const dashboardSubmissionLogsQuerySchema = z.object({
   runId: z.string().uuid().optional()
 })
 
+const dashboardSubmissionReportParamsSchema = z.object({
+  submissionId: z.string().uuid()
+})
+
+const dashboardSubmissionQuestionSchema = z.object({
+  question: z.string().trim().min(3).max(2000)
+})
+
 export const dashboardRoutes = new Hono<AppBindings>()
 
 dashboardRoutes.get(
@@ -62,5 +70,29 @@ dashboardRoutes.get(
     const params = c.req.valid('param')
     const query = c.req.valid('query')
     return dashboardController.submissionLogs(c, params, query)
+  }
+)
+
+dashboardRoutes.get(
+  '/submissions/:submissionId/ai-report',
+  requireAuth,
+  requireRole(['employer']),
+  zValidator('param', dashboardSubmissionReportParamsSchema),
+  async (c) => {
+    const params = c.req.valid('param')
+    return dashboardController.submissionReport(c, params)
+  }
+)
+
+dashboardRoutes.post(
+  '/submissions/:submissionId/ai-report/questions',
+  requireAuth,
+  requireRole(['employer']),
+  zValidator('param', dashboardSubmissionReportParamsSchema),
+  zValidator('json', dashboardSubmissionQuestionSchema),
+  async (c) => {
+    const params = c.req.valid('param')
+    const payload = c.req.valid('json')
+    return dashboardController.submissionQuestion(c, params, payload)
   }
 )

@@ -11,6 +11,8 @@ Provide an employer-focused page to inspect all submissions grouped by assignmen
 ## Backend Endpoint
 - `GET /api/dashboard/submissions`
 - `GET /api/dashboard/submissions/:submissionId/logs`
+- `GET /api/dashboard/submissions/:submissionId/ai-report`
+- `POST /api/dashboard/submissions/:submissionId/ai-report/questions`
 
 ## Supported Filters
 - `assignmentId` (optional)
@@ -28,6 +30,7 @@ Provide an employer-focused page to inspect all submissions grouped by assignmen
 6. Filters can be applied/cleared without leaving the page.
 7. Pagination buttons move through filtered results.
 8. Employers can open per-submission pipeline logs and switch between recent runs.
+9. Employers can open AI performance reports and ask grounded follow-up questions in the same workspace.
 
 ## Files
 - `/Users/Dilain/.codex/worktrees/5eff/MarkI/apps/web/src/components/dashboard/employer-submissions-explorer.tsx`
