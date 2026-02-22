@@ -1,0 +1,2 @@
+ALTER TABLE "submissions" ADD COLUMN "github_installation_id" text;--> statement-breakpoint
+CREATE INDEX "submission_github_installation_id_idx" ON "submissions" USING btree ("github_installation_id");
