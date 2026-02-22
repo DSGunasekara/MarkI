@@ -63,6 +63,7 @@ Pipeline controls:
 - `PIPELINE_PREVIEW_BASE_DOMAIN`
 - `PIPELINE_PREVIEW_DOCKER_NETWORK`
 - `PIPELINE_PREVIEW_TRAEFIK_ENTRYPOINTS`
+- `PIPELINE_PREVIEW_TRAEFIK_TLS`
 - `PIPELINE_PREVIEW_PORT_MIN`
 - `PIPELINE_PREVIEW_PORT_MAX`
 - `PIPELINE_DEPLOYMENT_BASE_URL`
@@ -90,3 +91,6 @@ Pipeline controls:
    - configure DNS `*.preview.example.com` to your Dokploy ingress/load balancer
    - ensure wildcard TLS is available for `*.preview.example.com`
    - set `PIPELINE_PREVIEW_DOCKER_NETWORK` to the proxy-visible Docker network (for Dokploy this is commonly `dokploy-network`)
+   - if your edge (for example Cloudflare Tunnel) forwards plain HTTP to Traefik on port 80, use:
+     - `PIPELINE_PREVIEW_TRAEFIK_ENTRYPOINTS=web`
+     - `PIPELINE_PREVIEW_TRAEFIK_TLS=false`
