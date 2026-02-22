@@ -1,0 +1,11 @@
+.git
+.gitignore
+node_modules
+**/node_modules
+**/dist
+.pnpm-store
+*.log
+.DS_Store
+apps/web/.env
+apps/api/.env
+packages/db/.env
