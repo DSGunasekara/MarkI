@@ -116,6 +116,7 @@ Files:
 ## Environment Variables
 Add to API environment:
 - `GITHUB_APP_ID`
+- `GITHUB_APP_PRIVATE_KEY_BASE64` (preferred single-line value for container env files)
 - `GITHUB_APP_PRIVATE_KEY`
 - `GITHUB_APP_SLUG`
 - `GITHUB_APP_WEBHOOK_SECRET`

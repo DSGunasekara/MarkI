@@ -47,7 +47,8 @@ Optional but recommended:
 - `OPENAI_MODEL`
 - `GITHUB_APP_ID`
 - `GITHUB_APP_SLUG`
-- `GITHUB_APP_PRIVATE_KEY`
+- `GITHUB_APP_PRIVATE_KEY_BASE64` (preferred)
+- `GITHUB_APP_PRIVATE_KEY` (fallback; escaped `\n` format only)
 - `GITHUB_APP_WEBHOOK_SECRET`
 - `GITHUB_WEBHOOK_SECRET`
 
@@ -62,6 +63,8 @@ Pipeline controls:
 ## Dokploy Notes
 1. In Dokploy, deploy using the repository `docker-compose.yml`.
 2. Configure environment variables in Dokploy UI (do not hardcode secrets in repo).
+   - For GitHub App key, use `GITHUB_APP_PRIVATE_KEY_BASE64` to avoid multiline `.env` parsing issues.
+   - Do not paste raw multiline PEM directly into `.env`.
 3. Ensure Docker socket mounting is enabled for the API service if you want in-platform build/deploy pipeline support.
 4. Set public domains so:
    - web domain points to `web` service
@@ -70,3 +73,5 @@ Pipeline controls:
    - `VITE_API_BASE_URL` to your API public URL
    - `BETTER_AUTH_URL` to your API public URL
    - `BETTER_AUTH_TRUSTED_ORIGINS` to include your web public URL
+6. Convert PEM to single-line base64 before setting `GITHUB_APP_PRIVATE_KEY_BASE64`, for example:
+   - `base64 < github-app-private-key.pem | tr -d '\n'`

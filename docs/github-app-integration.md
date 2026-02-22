@@ -22,11 +22,12 @@ Support repository updates from different GitHub accounts without requiring each
 
 ## Required Environment Variables
 - `GITHUB_APP_ID`
-- `GITHUB_APP_PRIVATE_KEY`
+- `GITHUB_APP_PRIVATE_KEY_BASE64` (preferred for Dokploy/Compose because it is single-line)
 - `GITHUB_APP_SLUG`
 - `GITHUB_APP_WEBHOOK_SECRET`
 
 Optional fallback:
+- `GITHUB_APP_PRIVATE_KEY` (supports `\n` escaped PEM format)
 - `GITHUB_WEBHOOK_SECRET`
 
 ## GitHub App Settings
