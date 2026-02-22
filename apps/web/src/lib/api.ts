@@ -304,7 +304,7 @@ type EmployerAiQuestionEnvelope = {
   }
 }
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000"
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? ""
 
 class ApiError extends Error {
   status: number
@@ -339,6 +339,9 @@ const extractMessage = (payload: unknown): string | null => {
 }
 
 const resolveUrl = (path: string): string => {
+  if (!apiBaseUrl) {
+    return path
+  }
   return new URL(path, apiBaseUrl).toString()
 }
 
