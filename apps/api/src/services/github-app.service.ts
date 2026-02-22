@@ -67,13 +67,39 @@ const base64UrlEncode = (value: string): string => {
   return Buffer.from(value, 'utf8').toString('base64url')
 }
 
-const getConfiguredPrivateKey = (): string | null => {
-  const rawPrivateKey = process.env.GITHUB_APP_PRIVATE_KEY
-  if (!rawPrivateKey || rawPrivateKey.trim().length === 0) {
+const decodeBase64 = (value: string): string | null => {
+  try {
+    const normalizedValue = value
+      .trim()
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+
+    const paddingLength = normalizedValue.length % 4
+    const paddedValue =
+      paddingLength === 0 ? normalizedValue : `${normalizedValue}${'='.repeat(4 - paddingLength)}`
+
+    return Buffer.from(paddedValue, 'base64').toString('utf8')
+  } catch {
     return null
   }
+}
 
-  return rawPrivateKey.replace(/\\n/g, '\n')
+const getConfiguredPrivateKey = (): string | null => {
+  const base64PrivateKey = process.env.GITHUB_APP_PRIVATE_KEY_BASE64
+  if (base64PrivateKey && base64PrivateKey.trim().length > 0) {
+    const decodedPrivateKey = decodeBase64(base64PrivateKey)
+    if (decodedPrivateKey && decodedPrivateKey.trim().length > 0) {
+      return decodedPrivateKey
+    }
+  }
+  return null
+
+  // const rawPrivateKey = process.env.GITHUB_APP_PRIVATE_KEY
+  // if (!rawPrivateKey || rawPrivateKey.trim().length === 0) {
+  //   return null
+  // }
+
+  // return rawPrivateKey.replace(/\\n/g, '\n')
 }
 
 const getInstallUrl = (appSlug: string | null): string | null => {
@@ -112,7 +138,9 @@ const createAppJwt = (): string => {
   const privateKey = getConfiguredPrivateKey()
 
   if (!appId || !privateKey) {
-    throw new Error('GitHub App is not configured. Set GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY.')
+    throw new Error(
+      'GitHub App is not configured. Set GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY_BASE64 (preferred) or GITHUB_APP_PRIVATE_KEY.'
+    )
   }
 
   const nowInSeconds = Math.floor(Date.now() / 1000)
