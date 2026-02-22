@@ -10,7 +10,8 @@ Deploy the full Hiring Engine stack with Docker Compose on Dokploy:
 - API image: `/Users/Dilain/.codex/worktrees/5eff/MarkI/apps/api/Dockerfile`
 - Web image: `/Users/Dilain/.codex/worktrees/5eff/MarkI/apps/web/Dockerfile`
 - Web Nginx config: `/Users/Dilain/.codex/worktrees/5eff/MarkI/apps/web/nginx.conf`
-- Compose stack: `/Users/Dilain/.codex/worktrees/5eff/MarkI/docker-compose.yml`
+- Dokploy compose stack (no host port binding): `/Users/Dilain/.codex/worktrees/5eff/MarkI/docker-compose.dokploy.yml`
+- Local compose stack: `/Users/Dilain/.codex/worktrees/5eff/MarkI/docker-compose.yml`
 - Docker ignore rules: `/Users/Dilain/.codex/worktrees/5eff/MarkI/.dockerignore`
 
 ## Compose Services
@@ -18,6 +19,7 @@ Deploy the full Hiring Engine stack with Docker Compose on Dokploy:
 - Postgres 16
 - persistent volume: `hiring_engine_postgres_data`
 - healthcheck enabled
+- internal port via `expose` (no host `ports` mapping)
 
 ### `api`
 - Builds from `apps/api/Dockerfile`
@@ -26,6 +28,7 @@ Deploy the full Hiring Engine stack with Docker Compose on Dokploy:
 - Starts API via:
   - `pnpm --filter api exec tsx src/index.ts`
 - Exposes port `${API_PORT:-3000}`
+- internal port via `expose: 3000` (no host binding in Dokploy compose)
 - Mounts Docker socket to support submission pipeline container builds/deploys:
   - `/var/run/docker.sock:/var/run/docker.sock`
 
@@ -34,6 +37,7 @@ Deploy the full Hiring Engine stack with Docker Compose on Dokploy:
 - Injects `VITE_API_BASE_URL` at build time
 - Serves built app with Nginx and SPA fallback
 - Exposes port `${WEB_PORT:-4173}`
+- internal port via `expose: 80` (Dokploy routes traffic through its proxy)
 
 ## Required Environment Variables
 Minimum for production:
@@ -61,7 +65,7 @@ Pipeline controls:
 - `PIPELINE_COMMAND_TIMEOUT_MS`
 
 ## Dokploy Notes
-1. In Dokploy, deploy using the repository `docker-compose.yml`.
+1. In Dokploy, deploy using `docker-compose.dokploy.yml` to avoid host port collisions.
 2. Configure environment variables in Dokploy UI (do not hardcode secrets in repo).
    - For GitHub App key, use `GITHUB_APP_PRIVATE_KEY_BASE64` to avoid multiline `.env` parsing issues.
    - Do not paste raw multiline PEM directly into `.env`.
@@ -75,3 +79,4 @@ Pipeline controls:
    - `BETTER_AUTH_TRUSTED_ORIGINS` to include your web public URL
 6. Convert PEM to single-line base64 before setting `GITHUB_APP_PRIVATE_KEY_BASE64`, for example:
    - `base64 < github-app-private-key.pem | tr -d '\n'`
+7. If you still use `docker-compose.yml`, set `API_PORT` to an unused host port to avoid `port is already allocated`.

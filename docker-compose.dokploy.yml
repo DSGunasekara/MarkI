@@ -1,0 +1,74 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: hiring-engine-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-hiring_engine}
+    volumes:
+      - hiring_engine_postgres_data:/var/lib/postgresql/data
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-hiring_engine}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: hiring-engine-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/hiring_engine}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-https://api.example.com}
+      BETTER_AUTH_TRUSTED_ORIGINS: ${BETTER_AUTH_TRUSTED_ORIGINS:-https://app.example.com}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-replace-with-a-long-random-secret}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_SLUG: ${GITHUB_APP_SLUG:-}
+      GITHUB_APP_PRIVATE_KEY_BASE64: ${GITHUB_APP_PRIVATE_KEY_BASE64:-}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      GITHUB_APP_WEBHOOK_SECRET: ${GITHUB_APP_WEBHOOK_SECRET:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      PIPELINE_DEPLOYMENT_MODE: ${PIPELINE_DEPLOYMENT_MODE:-docker}
+      PIPELINE_PREVIEW_BASE_URL: ${PIPELINE_PREVIEW_BASE_URL:-https://preview.example.com}
+      PIPELINE_PREVIEW_PORT_MIN: ${PIPELINE_PREVIEW_PORT_MIN:-4500}
+      PIPELINE_PREVIEW_PORT_MAX: ${PIPELINE_PREVIEW_PORT_MAX:-5500}
+      PIPELINE_DEPLOYMENT_BASE_URL: ${PIPELINE_DEPLOYMENT_BASE_URL:-https://preview.example.com}
+      PIPELINE_COMMAND_TIMEOUT_MS: ${PIPELINE_COMMAND_TIMEOUT_MS:-600000}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://api.example.com}
+    container_name: hiring-engine-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    expose:
+      - "80"
+
+volumes:
+  hiring_engine_postgres_data:
