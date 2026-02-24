@@ -119,6 +119,17 @@ export type EmployerSubmissionExplorer = {
   submissions: EmployerSubmissionExplorerRecord[]
 }
 
+export type EmployerAssignmentExplorer = {
+  filters: {
+    search: string | null
+    sort: EmployerSubmissionsSort
+    limit: number
+    offset: number
+  }
+  totalAssignments: number
+  assignments: DashboardAssignment[]
+}
+
 export type CandidateSubmission = {
   id: string
   assignmentId: string
@@ -252,6 +263,10 @@ type DashboardOverviewEnvelope = {
 
 type DashboardSubmissionsEnvelope = {
   data: EmployerSubmissionExplorer
+}
+
+type DashboardAssignmentsEnvelope = {
+  data: EmployerAssignmentExplorer
 }
 
 type CandidateOverviewEnvelope = {
@@ -453,6 +468,37 @@ export const dashboardApi = {
     const path =
       queryString.length > 0 ? `/api/dashboard/overview?${queryString}` : "/api/dashboard/overview"
     const payload = await request<DashboardOverviewEnvelope>(path)
+    return payload.data
+  },
+
+  getAssignments: async (input?: {
+    search?: string
+    sort?: EmployerSubmissionsSort
+    limit?: number
+    offset?: number
+  }): Promise<EmployerAssignmentExplorer> => {
+    const query = new URLSearchParams()
+
+    if (typeof input?.search === "string" && input.search.trim().length > 0) {
+      query.set("search", input.search.trim())
+    }
+
+    if (typeof input?.sort === "string") {
+      query.set("sort", input.sort)
+    }
+
+    if (typeof input?.limit === "number") {
+      query.set("limit", String(input.limit))
+    }
+
+    if (typeof input?.offset === "number") {
+      query.set("offset", String(input.offset))
+    }
+
+    const queryString = query.toString()
+    const path =
+      queryString.length > 0 ? `/api/dashboard/assignments?${queryString}` : "/api/dashboard/assignments"
+    const payload = await request<DashboardAssignmentsEnvelope>(path)
     return payload.data
   },
 

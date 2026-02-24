@@ -64,8 +64,8 @@ export function EmployerDashboard() {
 
     try {
       const response = await dashboardApi.getOverview({
-        assignmentsLimit: 10,
-        submissionsLimit: 12
+        assignmentsLimit: 5,
+        submissionsLimit: 5
       })
 
       setOverview(response)
@@ -226,6 +226,9 @@ export function EmployerDashboard() {
             <div className="flex items-center gap-2">
               <Button size="sm" onClick={() => void navigate({ to: "/employer/assignments/new" })}>
                 Create assignment
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => void navigate({ to: "/employer/assignments" })}>
+                View all assignments
               </Button>
               <Button size="sm" variant="outline" onClick={() => void navigate({ to: "/employer/submissions" })}>
                 View all submissions

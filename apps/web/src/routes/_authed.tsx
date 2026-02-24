@@ -27,14 +27,13 @@ export const Route = createFileRoute("/_authed")({
 
 function AuthedLayout() {
   const { session } = Route.useRouteContext()
-      console.log({session})
-  
       const navItems: WorkspaceNavItem[] = session?.user.role === "candidate" ? [
           { key: "dashboard", label: "Dashboard", href: "/candidate" },
           { key: "submit-repository", label: "Submit Repository", href: "/candidate/submissions/new" },
       ] : session?.user.role === "employer" ? [
           { key: "dashboard", label: "Dashboard", href: "/employer" },
-          { key: "submit-repository", label: "Submit Repository", href: "/employer/assignments/new" },
+          { key: "assignments", label: "Assignments", href: "/employer/assignments" },
+          { key: "create-assignment", label: "Create Assignment", href: "/employer/assignments/new" },
       ] : []
   
       return <WorkspaceShell

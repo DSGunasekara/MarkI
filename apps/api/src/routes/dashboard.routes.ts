@@ -11,6 +11,13 @@ const dashboardOverviewQuerySchema = z.object({
   submissionsLimit: z.coerce.number().int().min(1).max(25).optional()
 })
 
+const dashboardAssignmentsQuerySchema = z.object({
+  search: z.string().trim().min(1).max(120).optional(),
+  sort: z.enum(['newest', 'oldest']).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  offset: z.coerce.number().int().min(0).max(5_000).optional()
+})
+
 const dashboardSubmissionsQuerySchema = z.object({
   assignmentId: z.string().uuid().optional(),
   status: z.enum(['pending', 'building', 'deployed', 'failed']).optional(),
@@ -46,6 +53,17 @@ dashboardRoutes.get(
   async (c) => {
     const query = c.req.valid('query')
     return dashboardController.overview(c, query)
+  }
+)
+
+dashboardRoutes.get(
+  '/assignments',
+  requireAuth,
+  requireRole(['employer']),
+  zValidator('query', dashboardAssignmentsQuerySchema),
+  async (c) => {
+    const query = c.req.valid('query')
+    return dashboardController.assignments(c, query)
   }
 )
 

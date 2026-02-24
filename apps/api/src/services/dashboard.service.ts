@@ -7,6 +7,13 @@ type DashboardOverviewOptions = {
   submissionsLimit: number
 }
 
+type DashboardAssignmentsOptions = {
+  search?: string
+  sort: 'newest' | 'oldest'
+  limit: number
+  offset: number
+}
+
 type DashboardSubmissionsOptions = {
   assignmentId?: string
   status?: 'pending' | 'building' | 'deployed' | 'failed'
@@ -18,6 +25,7 @@ type DashboardSubmissionsOptions = {
 
 const DEFAULT_ASSIGNMENTS_LIMIT = 8
 const DEFAULT_SUBMISSIONS_LIMIT = 10
+const DEFAULT_ASSIGNMENTS_PAGE_LIMIT = 10
 const DEFAULT_EXPLORER_LIMIT = 25
 
 const candidateUser = alias(user, 'candidate_user')
@@ -91,6 +99,66 @@ export const dashboardService = {
       },
       recentAssignments,
       recentSubmissions
+    }
+  },
+
+  getEmployerAssignments: async (
+    employerId: string,
+    options?: Partial<DashboardAssignmentsOptions>
+  ) => {
+    const search = options?.search?.trim()
+    const sort = options?.sort ?? 'newest'
+    const limit = options?.limit ?? DEFAULT_ASSIGNMENTS_PAGE_LIMIT
+    const offset = options?.offset ?? 0
+
+    const conditions = [eq(assignments.employerId, employerId)]
+
+    if (search && search.length > 0) {
+      conditions.push(
+        or(
+          ilike(assignments.title, `%${search}%`),
+          ilike(assignments.joinCode, `%${search}%`)
+        )!
+      )
+    }
+
+    const whereClause = and(...conditions)
+    const orderBy = sort === 'oldest' ? asc(assignments.createdAt) : desc(assignments.createdAt)
+
+    const [totalResult] = await db
+      .select({
+        totalAssignments: sql<number>`count(*)::int`
+      })
+      .from(assignments)
+      .where(whereClause)
+
+    const filteredAssignments = await db
+      .select({
+        id: assignments.id,
+        title: assignments.title,
+        joinCode: assignments.joinCode,
+        createdAt: assignments.createdAt,
+        updatedAt: assignments.updatedAt,
+        submissionCount: sql<number>`count(${submissions.id})::int`,
+        latestSubmissionAt: sql<Date | null>`max(${submissions.createdAt})`
+      })
+      .from(assignments)
+      .leftJoin(submissions, eq(submissions.assignmentId, assignments.id))
+      .where(whereClause)
+      .groupBy(assignments.id)
+      .orderBy(orderBy)
+      .limit(limit)
+      .offset(offset)
+
+    return {
+      filters: {
+        search: search ?? null,
+        sort,
+        limit,
+        offset
+      },
+      totalAssignments: totalResult?.totalAssignments ?? 0,
+      assignments: filteredAssignments
     }
   },
 
