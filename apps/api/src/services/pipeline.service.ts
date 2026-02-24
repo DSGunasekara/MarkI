@@ -16,6 +16,7 @@ import path from 'node:path'
 
 import { aiReportService } from './ai-report.service.js'
 import { githubAppService } from './github-app.service.js'
+import { pipelineEvents } from './pipeline-events.js'
 
 type PipelineTrigger = 'submission' | 'push'
 type PipelineRunStatus = 'queued' | 'running' | 'deployed' | 'failed'
@@ -471,12 +472,28 @@ const appendBuildLog = async (
     return
   }
 
-  await db.insert(buildLogs).values({
+  const [inserted] = await db.insert(buildLogs).values({
     buildRunId: runId,
     stage,
     level,
     message: normalizedMessage
+  }).returning({
+    id: buildLogs.id,
+    createdAt: buildLogs.createdAt
   })
+
+  if (inserted) {
+    pipelineEvents.emitLog({
+      runId,
+      log: {
+        id: inserted.id,
+        stage,
+        level,
+        message: normalizedMessage,
+        createdAt: inserted.createdAt.toISOString()
+      }
+    })
+  }
 }
 
 const updateSubmissionStatus = async (
@@ -625,6 +642,8 @@ const runPipeline = async (runId: string): Promise<void> => {
       updatedAt: new Date()
     })
     .where(eq(buildRuns.id, runId))
+
+  pipelineEvents.emitRunStatus({ runId, status: 'running' })
 
   await updateSubmissionStatus(runRecord.submissionId, 'building', {
     latestCommitSha: runRecord.commitSha ?? null,
@@ -898,6 +917,8 @@ const runPipeline = async (runId: string): Promise<void> => {
       })
       .where(eq(buildRuns.id, runId))
 
+    pipelineEvents.emitRunStatus({ runId, status: 'deployed' })
+
     await updateSubmissionStatus(runRecord.submissionId, 'deployed', {
       latestCommitSha: resolvedCommitSha,
       deployedUrl: deploymentUrl,
@@ -953,6 +974,8 @@ const runPipeline = async (runId: string): Promise<void> => {
         updatedAt: failedAt
       })
       .where(eq(buildRuns.id, runId))
+
+    pipelineEvents.emitRunStatus({ runId, status: 'failed' })
 
     await updateSubmissionStatus(runRecord.submissionId, 'failed', {
       latestCommitSha: resolvedCommitSha,

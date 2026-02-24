@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 
 import { candidateController } from '../controllers/candidate.controller.js'
+import { streamController } from '../controllers/stream.controller.js'
 import { requireAuth, requireRole } from '../middleware/auth.middleware.js'
 import type { AppBindings } from '../types/hono.js'
 
@@ -115,5 +116,18 @@ candidateRoutes.get(
     const params = c.req.valid('param')
     const query = c.req.valid('query')
     return candidateController.submissionLogs(c, params, query)
+  }
+)
+
+candidateRoutes.get(
+  '/submissions/:submissionId/logs/stream',
+  requireAuth,
+  requireRole(['candidate']),
+  zValidator('param', candidateSubmissionParamsSchema),
+  zValidator('query', candidateSubmissionLogsQuerySchema),
+  async (c) => {
+    const params = c.req.valid('param')
+    const query = c.req.valid('query')
+    return streamController.candidateLogStream(c, params, query)
   }
 )

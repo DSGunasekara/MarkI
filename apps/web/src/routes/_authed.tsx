@@ -1,6 +1,5 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { sessionQueryOptions } from "@/lib/auth"
 import type { SessionState } from "@/lib/api"
 import { WorkspaceShell } from "@/components/shared/workspace-shell"
@@ -49,16 +48,16 @@ function AuthedLayout() {
 function LoadingWorkspace() {
   return (
     <main className="app-shell dark flex items-center justify-center px-4 py-16">
-      <Card className="app-panel w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Loading workspace...</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Checking your current session.
-          </p>
-        </CardContent>
-      </Card>
+      <div className="flex flex-col items-center gap-4 animate-in fade-in duration-500">
+        <div className="relative flex h-12 w-12 items-center justify-center">
+          <div className="absolute inset-0 rounded-full border-2 border-muted" />
+          <div className="absolute inset-0 animate-spin rounded-full border-2 border-t-primary border-r-transparent border-b-transparent border-l-transparent" />
+        </div>
+        <div className="space-y-1 text-center">
+          <p className="text-sm font-medium text-foreground">Loading workspace</p>
+          <p className="text-xs text-muted-foreground">Checking your current session…</p>
+        </div>
+      </div>
     </main>
   )
 }

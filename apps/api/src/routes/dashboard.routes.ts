@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 
 import { dashboardController } from '../controllers/dashboard.controller.js'
+import { streamController } from '../controllers/stream.controller.js'
 import { requireAuth, requireRole } from '../middleware/auth.middleware.js'
 import type { AppBindings } from '../types/hono.js'
 
@@ -88,6 +89,19 @@ dashboardRoutes.get(
     const params = c.req.valid('param')
     const query = c.req.valid('query')
     return dashboardController.submissionLogs(c, params, query)
+  }
+)
+
+dashboardRoutes.get(
+  '/submissions/:submissionId/logs/stream',
+  requireAuth,
+  requireRole(['employer']),
+  zValidator('param', dashboardSubmissionParamsSchema),
+  zValidator('query', dashboardSubmissionLogsQuerySchema),
+  async (c) => {
+    const params = c.req.valid('param')
+    const query = c.req.valid('query')
+    return streamController.employerLogStream(c, params, query)
   }
 )
 

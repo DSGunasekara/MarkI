@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 
 import { EmployerSubmissionsExplorer } from "@/components/dashboard/employer-submissions-explorer"
+import { SubmissionsExplorerSkeleton } from "@/components/shared/page-skeletons"
 
 type SubmissionsSearch = {
   assignmentId?: string
@@ -13,6 +14,7 @@ export const Route = createFileRoute("/_authed/employer/submissions")({
         ? search.assignmentId
         : undefined,
   }),
+  pendingComponent: SubmissionsExplorerSkeleton,
   component: EmployerSubmissionsPage,
 })
 
