@@ -295,7 +295,7 @@ export function EmployerSubmissionsExplorer({
       workspaceLabel="Employer Workspace"
       title="Submissions Explorer"
       description="Filter and inspect submissions grouped by assignment."
-      userEmail={user.email}
+      user={{ name: user.name, email: user.email, avatar: "" }}
       navItems={[
         {
           key: "dashboard",

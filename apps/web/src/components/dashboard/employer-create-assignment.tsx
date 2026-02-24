@@ -75,7 +75,7 @@ export function EmployerCreateAssignment({
       workspaceLabel="Employer Workspace"
       title="Create Assignment"
       description="Define scope and requirements so candidate evaluations stay consistent."
-      userEmail={user.email}
+      user={{ name: user.name, email: user.email, avatar: "" }}
       navItems={[
         {
           key: "dashboard",

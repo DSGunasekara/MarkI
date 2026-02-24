@@ -120,7 +120,7 @@ export function EmployerDashboard({
       workspaceLabel="Employer Workspace"
       title="Dashboard"
       description="Monitor assignment activity and recent submission pipeline updates."
-      userEmail={user.email}
+      user={{ name: user.name, email: user.email, avatar: "" }}
       navItems={[
         {
           key: "dashboard",

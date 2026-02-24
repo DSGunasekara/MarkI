@@ -191,7 +191,7 @@ export function CandidateSubmitRepository({
       workspaceLabel="Candidate Workspace"
       title="Submit Repository"
       description="Submit or resubmit your assignment repository using the join code."
-      userEmail={user.email}
+      user={{ name: user.name, email: user.email, avatar: "" }}
       navItems={[
         {
           key: "dashboard",

@@ -135,7 +135,7 @@ export function CandidatePending({
       workspaceLabel="Candidate Workspace"
       title="Dashboard"
       description="Track your submission pipeline and assignment progress."
-      userEmail={user.email}
+      user={{ name: user.name, email: user.email, avatar: "" }}
       navItems={[
         {
           key: "dashboard",
