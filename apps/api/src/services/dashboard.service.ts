@@ -55,6 +55,7 @@ export const dashboardService = {
       .select({
         id: assignments.id,
         title: assignments.title,
+        instructions: assignments.instructions,
         joinCode: assignments.joinCode,
         createdAt: assignments.createdAt,
         updatedAt: assignments.updatedAt,
@@ -136,6 +137,7 @@ export const dashboardService = {
       .select({
         id: assignments.id,
         title: assignments.title,
+        instructions: assignments.instructions,
         joinCode: assignments.joinCode,
         createdAt: assignments.createdAt,
         updatedAt: assignments.updatedAt,

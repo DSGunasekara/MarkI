@@ -1,7 +1,7 @@
-import { useMemo } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { RefreshCwIcon } from "lucide-react"
+import { ClipboardCopyIcon, RefreshCwIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -63,6 +63,20 @@ export function EmployerDashboard() {
   })
 
   const errorMessage = error ? toErrorMessage(error) : null
+
+  const [copiedJoinCode, setCopiedJoinCode] = useState<string | null>(null)
+
+  const handleCopyJoinCode = useCallback(async (joinCode: string) => {
+    try {
+      await navigator.clipboard.writeText(joinCode)
+      setCopiedJoinCode(joinCode)
+      window.setTimeout(() => {
+        setCopiedJoinCode(null)
+      }, 2000)
+    } catch {
+      // Clipboard access denied — silently ignore
+    }
+  }, [])
 
   const metrics = useMemo(() => {
     return (
@@ -180,14 +194,30 @@ export function EmployerDashboard() {
                           >
                             {assignment.title}
                           </button>
+                          <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                            {assignment.instructions}
+                          </p>
                           <p className="mt-1 text-xs text-muted-foreground">
                             created {formatDateTime(assignment.createdAt)}
                           </p>
                         </td>
                         <td className="px-3 py-3">
-                          <Badge variant="outline" className="font-mono tracking-wider">
-                            {assignment.joinCode}
-                          </Badge>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="outline" className="font-mono tracking-wider">
+                              {assignment.joinCode}
+                            </Badge>
+                            <button
+                              type="button"
+                              className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                              title="Copy join code"
+                              onClick={() => void handleCopyJoinCode(assignment.joinCode)}
+                            >
+                              <ClipboardCopyIcon className="h-3.5 w-3.5" />
+                            </button>
+                            {copiedJoinCode === assignment.joinCode ? (
+                              <span className="text-xs text-primary">Copied!</span>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-3 py-3 text-muted-foreground">{assignment.submissionCount}</td>
                         <td className="px-3 py-3 text-muted-foreground">{formatDateTime(assignment.latestSubmissionAt)}</td>

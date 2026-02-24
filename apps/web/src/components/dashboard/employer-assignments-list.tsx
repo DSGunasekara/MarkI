@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { ClipboardCopyIcon, PlusIcon, RefreshCwIcon, SearchIcon } from "lucide-react"
+import { ChevronDownIcon, ChevronUpIcon, ClipboardCopyIcon, PlusIcon, RefreshCwIcon, SearchIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -44,6 +44,44 @@ const assignmentsQueryKey = (params: {
   sort: EmployerSubmissionsSort
   offset: number
 }) => ["dashboard", "assignments", params] as const
+
+const INSTRUCTIONS_PREVIEW_THRESHOLD = 150
+
+function InstructionsPreview({ instructions }: { instructions: string }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const isLong = instructions.length > INSTRUCTIONS_PREVIEW_THRESHOLD
+
+  if (!isLong) {
+    return (
+      <p className="mt-1 text-xs text-muted-foreground">
+        {instructions}
+      </p>
+    )
+  }
+
+  return (
+    <div className="mt-1">
+      <p className={`text-xs text-muted-foreground ${isExpanded ? "whitespace-pre-wrap" : "line-clamp-1"}`}>
+        {instructions}
+      </p>
+      <button
+        type="button"
+        className="mt-0.5 inline-flex items-center gap-0.5 text-xs text-primary hover:underline"
+        onClick={() => setIsExpanded((prev) => !prev)}
+      >
+        {isExpanded ? (
+          <>
+            Show less <ChevronUpIcon className="h-3 w-3" />
+          </>
+        ) : (
+          <>
+            Show more <ChevronDownIcon className="h-3 w-3" />
+          </>
+        )}
+      </button>
+    </div>
+  )
+}
 
 export function EmployerAssignmentsList() {
   const navigate = useNavigate()
@@ -261,6 +299,7 @@ export function EmployerAssignmentsList() {
                         >
                           {assignment.title}
                         </button>
+                        <InstructionsPreview instructions={assignment.instructions} />
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-1.5">

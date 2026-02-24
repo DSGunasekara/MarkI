@@ -30,6 +30,7 @@ export type AssignmentRecord = {
 export type DashboardAssignment = {
   id: string
   title: string
+  instructions: string
   joinCode: string
   createdAt: string
   updatedAt: string
