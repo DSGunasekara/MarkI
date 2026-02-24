@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { RefreshCwIcon } from "lucide-react"
+import { useCallback, useMemo, useState } from "react"
+import { useNavigate } from "@tanstack/react-router"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { ClipboardCopyIcon, RefreshCwIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,23 +13,11 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card"
-import { WorkspaceShell } from "@/components/shared/workspace-shell"
 import {
   dashboardApi,
   toErrorMessage,
-  type DashboardOverview,
-  type DashboardSubmissionStatus,
-  type SessionUser
+  type DashboardSubmissionStatus
 } from "@/lib/api"
-
-type EmployerDashboardProps = {
-  user: SessionUser
-  onSignOut: () => Promise<void>
-  onOpenCreateAssignment: () => void
-  onOpenSubmissionsExplorer: (assignmentId?: string) => void
-}
-
-type OverviewLoadMode = "initial" | "refresh"
 
 type SubmissionBadgeVariant = "default" | "secondary" | "destructive" | "outline"
 
@@ -54,53 +44,39 @@ const toRepositoryHref = (repositoryUrl: string): string => {
   return `https://${repositoryUrl}`
 }
 
-export function EmployerDashboard({
-  user,
-  onSignOut,
-  onOpenCreateAssignment,
-  onOpenSubmissionsExplorer
-}: EmployerDashboardProps) {
-  const [overview, setOverview] = useState<DashboardOverview | null>(null)
-  const [overviewErrorMessage, setOverviewErrorMessage] = useState<string | null>(null)
-  const [isLoadingOverview, setIsLoadingOverview] = useState(true)
-  const [isRefreshingOverview, setIsRefreshingOverview] = useState(false)
+export function EmployerDashboard() {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
-  const loadOverview = useCallback(async (mode: OverviewLoadMode) => {
-    if (mode === "initial") {
-      setIsLoadingOverview(true)
-    } else {
-      setIsRefreshingOverview(true)
-    }
-
-    setOverviewErrorMessage(null)
-
-    try {
-      const response = await dashboardApi.getOverview({
-        assignmentsLimit: 10,
-        submissionsLimit: 12
+  const {
+    data: overview,
+    error,
+    isLoading,
+    isFetching
+  } = useQuery({
+    queryKey: ["dashboard", "overview"],
+    queryFn: () =>
+      dashboardApi.getOverview({
+        assignmentsLimit: 5,
+        submissionsLimit: 5
       })
+  })
 
-      setOverview(response)
-    } catch (error: unknown) {
-      setOverviewErrorMessage(toErrorMessage(error))
-    } finally {
-      if (mode === "initial") {
-        setIsLoadingOverview(false)
-      } else {
-        setIsRefreshingOverview(false)
-      }
+  const errorMessage = error ? toErrorMessage(error) : null
+
+  const [copiedJoinCode, setCopiedJoinCode] = useState<string | null>(null)
+
+  const handleCopyJoinCode = useCallback(async (joinCode: string) => {
+    try {
+      await navigator.clipboard.writeText(joinCode)
+      setCopiedJoinCode(joinCode)
+      window.setTimeout(() => {
+        setCopiedJoinCode(null)
+      }, 2000)
+    } catch {
+      // Clipboard access denied — silently ignore
     }
   }, [])
-
-  useEffect(() => {
-    const timerId = window.setTimeout(() => {
-      void loadOverview("initial")
-    }, 0)
-
-    return () => {
-      window.clearTimeout(timerId)
-    }
-  }, [loadOverview])
 
   const metrics = useMemo(() => {
     return (
@@ -115,49 +91,31 @@ export function EmployerDashboard({
     )
   }, [overview])
 
+  const handleRefresh = () => {
+    void queryClient.invalidateQueries({
+      queryKey: ["dashboard", "overview"]
+    })
+  }
+
   return (
-    <WorkspaceShell
-      workspaceLabel="Employer Workspace"
-      title="Dashboard"
-      description="Monitor assignment activity and recent submission pipeline updates."
-      user={{ name: user.name, email: user.email, avatar: "" }}
-      navItems={[
-        {
-          key: "dashboard",
-          label: "Dashboard",
-          isActive: true,
-          onClick: () => {
-            // no-op: already on dashboard
-          }
-        },
-        {
-          key: "create-assignment",
-          label: "Create Assignment",
-          isActive: false,
-          onClick: onOpenCreateAssignment
-        },
-        {
-          key: "submissions",
-          label: "Submissions",
-          isActive: false,
-          onClick: () => onOpenSubmissionsExplorer()
-        }
-      ]}
-      onSignOut={onSignOut}
-      headerActions={
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            void loadOverview("refresh")
-          }}
-          disabled={isRefreshingOverview}
-        >
-          <RefreshCwIcon className={isRefreshingOverview ? "animate-spin" : ""} />
-          Refresh
-        </Button>
-      }
-    >
+    <div className="mx-auto w-full max-w-7xl space-y-4 px-4 py-4 md:px-6 lg:px-8">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Monitor assignment activity and recent submission pipeline updates.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isFetching}
+          >
+            <RefreshCwIcon className={isFetching ? "animate-spin" : ""} />
+            Refresh
+          </Button>
+        </div>
+      </div>
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <Card className="app-panel">
           <CardContent className="space-y-1 py-4">
@@ -197,9 +155,9 @@ export function EmployerDashboard({
         </Card>
       </section>
 
-      {overviewErrorMessage ? (
+      {errorMessage ? (
         <Card className="border-destructive/50 bg-destructive/10">
-          <CardContent className="py-3 text-sm text-destructive">{overviewErrorMessage}</CardContent>
+          <CardContent className="py-3 text-sm text-destructive">{errorMessage}</CardContent>
         </Card>
       ) : null}
 
@@ -212,7 +170,7 @@ export function EmployerDashboard({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoadingOverview && !overview ? (
+            {isLoading ? (
               <p className="text-sm text-muted-foreground">Loading assignments...</p>
             ) : overview && overview.recentAssignments.length > 0 ? (
               <div className="overflow-x-auto">
@@ -232,18 +190,34 @@ export function EmployerDashboard({
                           <button
                             type="button"
                             className="cursor-pointer text-left font-medium text-foreground underline decoration-transparent underline-offset-2 transition hover:text-primary hover:decoration-primary"
-                            onClick={() => onOpenSubmissionsExplorer(assignment.id)}
+                            onClick={() => void navigate({ to: "/employer/submissions", search: { assignmentId: assignment.id } })}
                           >
                             {assignment.title}
                           </button>
+                          <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                            {assignment.instructions}
+                          </p>
                           <p className="mt-1 text-xs text-muted-foreground">
                             created {formatDateTime(assignment.createdAt)}
                           </p>
                         </td>
                         <td className="px-3 py-3">
-                          <Badge variant="outline" className="font-mono tracking-wider">
-                            {assignment.joinCode}
-                          </Badge>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="outline" className="font-mono tracking-wider">
+                              {assignment.joinCode}
+                            </Badge>
+                            <button
+                              type="button"
+                              className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                              title="Copy join code"
+                              onClick={() => void handleCopyJoinCode(assignment.joinCode)}
+                            >
+                              <ClipboardCopyIcon className="h-3.5 w-3.5" />
+                            </button>
+                            {copiedJoinCode === assignment.joinCode ? (
+                              <span className="text-xs text-primary">Copied!</span>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-3 py-3 text-muted-foreground">{assignment.submissionCount}</td>
                         <td className="px-3 py-3 text-muted-foreground">{formatDateTime(assignment.latestSubmissionAt)}</td>
@@ -258,10 +232,13 @@ export function EmployerDashboard({
           </CardContent>
           <CardFooter>
             <div className="flex items-center gap-2">
-              <Button size="sm" onClick={onOpenCreateAssignment}>
+              <Button size="sm" onClick={() => void navigate({ to: "/employer/assignments/new" })}>
                 Create assignment
               </Button>
-              <Button size="sm" variant="outline" onClick={() => onOpenSubmissionsExplorer()}>
+              <Button size="sm" variant="outline" onClick={() => void navigate({ to: "/employer/assignments" })}>
+                View all assignments
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => void navigate({ to: "/employer/submissions" })}>
                 View all submissions
               </Button>
             </div>
@@ -276,7 +253,7 @@ export function EmployerDashboard({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoadingOverview && !overview ? (
+            {isLoading ? (
               <p className="text-sm text-muted-foreground">Loading submissions...</p>
             ) : overview && overview.recentSubmissions.length > 0 ? (
               <div className="overflow-x-auto">
@@ -323,6 +300,6 @@ export function EmployerDashboard({
           </CardContent>
         </Card>
       </section>
-    </WorkspaceShell>
+    </div>
   )
 }

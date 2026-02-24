@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react"
+import { useMutation } from "@tanstack/react-query"
 import { Rocket } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -34,7 +35,6 @@ type AuthPanelProps = {
 
 export function AuthPanel({ onAuthenticated, onNavigateHome }: AuthPanelProps) {
   const [mode, setMode] = useState<AuthMode>("sign-in")
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const [signInEmail, setSignInEmail] = useState("")
@@ -49,42 +49,46 @@ export function AuthPanel({ onAuthenticated, onNavigateHome }: AuthPanelProps) {
     setSignUpRole(value === "employer" ? "employer" : "candidate")
   }
 
-  const handleSignIn = async (event: FormEvent<HTMLFormElement>) => {
+  const signInMutation = useMutation({
+    mutationFn: async (input: { email: string; password: string }) => {
+      await authApi.signInWithEmail(input)
+      await onAuthenticated()
+    },
+    onError: (error: unknown) => {
+      setErrorMessage(toErrorMessage(error))
+    }
+  })
+
+  const signUpMutation = useMutation({
+    mutationFn: async (input: { name: string; email: string; password: string; role: UserRole }) => {
+      await authApi.signUpWithEmail(input)
+      await onAuthenticated()
+    },
+    onError: (error: unknown) => {
+      setErrorMessage(toErrorMessage(error))
+    }
+  })
+
+  const isSubmitting = signInMutation.isPending || signUpMutation.isPending
+
+  const handleSignIn = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setErrorMessage(null)
-    setIsSubmitting(true)
-
-    try {
-      await authApi.signInWithEmail({
-        email: signInEmail,
-        password: signInPassword
-      })
-      await onAuthenticated()
-    } catch (error: unknown) {
-      setErrorMessage(toErrorMessage(error))
-    } finally {
-      setIsSubmitting(false)
-    }
+    signInMutation.mutate({
+      email: signInEmail,
+      password: signInPassword
+    })
   }
 
-  const handleSignUp = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSignUp = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setErrorMessage(null)
-    setIsSubmitting(true)
-
-    try {
-      await authApi.signUpWithEmail({
-        name: signUpName,
-        email: signUpEmail,
-        password: signUpPassword,
-        role: signUpRole
-      })
-      await onAuthenticated()
-    } catch (error: unknown) {
-      setErrorMessage(toErrorMessage(error))
-    } finally {
-      setIsSubmitting(false)
-    }
+    signUpMutation.mutate({
+      name: signUpName,
+      email: signUpEmail,
+      password: signUpPassword,
+      role: signUpRole
+    })
   }
 
   return (

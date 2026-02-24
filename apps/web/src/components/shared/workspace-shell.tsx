@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import {  useLocation } from "@tanstack/react-router"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import {
@@ -6,49 +7,49 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import { cn } from "@/lib/utils"
+import { useSignOut } from "@/hooks/use-sign-out"
+import type { SessionState } from "@/lib/api"
 
-type WorkspaceNavItem = {
+export type WorkspaceNavItem = {
   key: string
   label: string
-  isActive: boolean
-  onClick: () => void
+  href: string
+  icon?: ReactNode
 }
 
 type WorkspaceShellProps = {
   workspaceLabel: string
-  title: string
-  description: string
-  user: {
-    name: string
-    email: string
-    avatar: string
-  }
+  session: SessionState
   navItems: WorkspaceNavItem[]
-  onSignOut: () => Promise<void>
+  headerSlot?: ReactNode
   children: ReactNode
-  headerActions?: ReactNode
-  maxWidthClassName?: string
 }
 
 export function WorkspaceShell({
   workspaceLabel,
-  title,
-  description,
-  user,
+  session,
   navItems,
-  onSignOut,
+  headerSlot,
   children,
-  headerActions,
-  maxWidthClassName = "max-w-7xl"
 }: WorkspaceShellProps) {
+  const location = useLocation()
+  const signOut = useSignOut()
+
+  const resolvedNavItems = navItems.map((item) => ({
+    key: item.key,
+    label: item.label,
+    href: item.href,
+    isActive: location.pathname === item.href,
+    icon: item.icon,
+  }))
+
   return (
     <SidebarProvider>
       <AppSidebar
         workspaceLabel={workspaceLabel}
-        navItems={navItems}
-        user={user}
-        onSignOut={onSignOut}
+        navItems={resolvedNavItems}
+        user={{ name: session.user.name, email: session.user.email, avatar: "" }}
+        onSignOut={signOut}
       />
 
       <SidebarInset>
@@ -56,19 +57,9 @@ export function WorkspaceShell({
           <SidebarTrigger />
         </header>
 
-        <div className={cn("mx-auto w-full space-y-4 px-4 py-4 md:px-6 lg:px-8", maxWidthClassName)}>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h1 className="text-xl font-semibold">{title}</h1>
-              <p className="text-sm text-muted-foreground">{description}</p>
-            </div>
-            {headerActions ? <div className="flex items-center gap-2">{headerActions}</div> : null}
-          </div>
-
-          {children}
-        </div>
+        {headerSlot}
+        {children}
       </SidebarInset>
     </SidebarProvider>
   )
 }
-
