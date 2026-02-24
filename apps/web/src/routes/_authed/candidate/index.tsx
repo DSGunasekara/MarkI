@@ -1,4 +1,5 @@
 import { CandidatePending } from "@/components/dashboard/candidate-pending"
+import { DashboardSkeleton } from "@/components/shared/page-skeletons"
 import { createFileRoute, redirect } from "@tanstack/react-router"
 
 export const Route = createFileRoute("/_authed/candidate/")({
@@ -7,6 +8,7 @@ export const Route = createFileRoute("/_authed/candidate/")({
       throw redirect({ to: "/employer" })
     }
   },
+  pendingComponent: () => <DashboardSkeleton metricCount={5} />,
   component: CandidateLayout,
 })
 

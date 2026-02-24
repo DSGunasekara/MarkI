@@ -17,8 +17,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { assignmentApi, toErrorMessage } from "@/lib/api"
+import { FormPageSkeleton } from "@/components/shared/page-skeletons"
 
 export const Route = createFileRoute("/_authed/employer/assignments/new")({
+  pendingComponent: () => <FormPageSkeleton fieldCount={2} />,
   component: EmployerCreateAssignmentPage,
 })
 
