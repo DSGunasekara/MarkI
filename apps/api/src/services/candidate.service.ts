@@ -85,7 +85,7 @@ export const candidateService = {
 
       if (integrationMetadata.isConfigured && !integrationMetadata.isInstalled) {
         throw new Error(
-          'Repository is not connected to the Hiring Engine GitHub App. Install the app on this repository before submitting.'
+          'Repository is not connected to the Codr AI GitHub App. Install the app on this repository before submitting.'
         )
       }
 

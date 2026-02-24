@@ -1,7 +1,7 @@
 # Dokploy Deployment
 
 ## Goal
-Deploy the full Hiring Engine stack with Docker Compose on Dokploy:
+Deploy the full Codr AI stack with Docker Compose on Dokploy:
 - PostgreSQL
 - Hono API
 - Vite/React web frontend (served by Nginx)

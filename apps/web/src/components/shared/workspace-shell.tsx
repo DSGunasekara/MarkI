@@ -39,7 +39,7 @@ export function WorkspaceShell({
       <aside className="border-b border-border bg-card/60 md:border-r md:border-b-0">
         <div className="flex h-full flex-col gap-4 p-4 md:sticky md:top-0 md:h-screen">
           <div>
-            <p className="app-overline">Hiring Engine</p>
+            <p className="app-overline">Codr AI</p>
             <p className="text-sm font-medium">{workspaceLabel}</p>
           </div>
 

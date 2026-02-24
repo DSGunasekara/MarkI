@@ -7,7 +7,7 @@ Candidate users can now:
 - View submission metrics and recent submission history.
 - Navigate between candidate routes from a shared sidebar workspace shell.
 - Inspect build/deploy logs for each submission run.
-- Install and use the Hiring Engine GitHub App for cross-account push rebuild automation.
+- Install and use the Codr AI GitHub App for cross-account push rebuild automation.
 - Use separate routes:
   - dashboard: `/candidate/dashboard`
   - submit form: `/candidate/submissions/new`

@@ -6,6 +6,7 @@ import { CandidateSubmitRepository } from "@/components/dashboard/candidate-subm
 import { EmployerCreateAssignment } from "@/components/dashboard/employer-create-assignment"
 import { EmployerDashboard } from "@/components/dashboard/employer-dashboard"
 import { EmployerSubmissionsExplorer } from "@/components/dashboard/employer-submissions-explorer"
+import { PlatformLanding } from "@/components/marketing/platform-landing"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -25,9 +26,15 @@ const EMPLOYER_CREATE_ASSIGNMENT_PATH = "/employer/assignments/new"
 const EMPLOYER_SUBMISSIONS_PATH = "/employer/submissions"
 const CANDIDATE_DASHBOARD_PATH = "/candidate/dashboard"
 const CANDIDATE_SUBMIT_REPOSITORY_PATH = "/candidate/submissions/new"
+const LANDING_PATH = "/"
+const AUTH_LOGIN_PATH = "/auth/login"
 
 const getDefaultPathForRole = (role: UserRole): string => {
   return role === "employer" ? EMPLOYER_DASHBOARD_PATH : CANDIDATE_DASHBOARD_PATH
+}
+
+const isPublicPath = (pathname: string): boolean => {
+  return pathname === LANDING_PATH || pathname === AUTH_LOGIN_PATH
 }
 
 const isAllowedPathForRole = (role: UserRole, pathname: string): boolean => {
@@ -114,7 +121,7 @@ function App() {
 
   const handleSignOut = useCallback(async () => {
     await authApi.signOut()
-    navigate("/", "replace")
+    navigate(LANDING_PATH, "replace")
     await refreshSession()
   }, [navigate, refreshSession])
 
@@ -138,8 +145,25 @@ function App() {
       return
     }
 
-    window.history.replaceState({}, "", getDefaultPathForRole(role))
-  }, [pathname, session])
+    navigate(getDefaultPathForRole(role), "replace")
+  }, [navigate, pathname, session])
+
+  useEffect(() => {
+    if (status !== "ready" || session) {
+      return
+    }
+
+    if (isPublicPath(pathname)) {
+      return
+    }
+
+    const nextTarget = `${pathname}${search}`
+    const query = new URLSearchParams({
+      next: nextTarget
+    })
+
+    navigate(`${AUTH_LOGIN_PATH}?${query.toString()}`, "replace")
+  }, [navigate, pathname, search, session, status])
 
   if (status === "loading") {
     return (
@@ -173,9 +197,22 @@ function App() {
   }
 
   if (!session) {
+    const redirectTargetFromSearch = new URLSearchParams(search).get("next")
+
+    const handleAuthenticated = async () => {
+      await refreshSession()
+      if (redirectTargetFromSearch && redirectTargetFromSearch.startsWith("/")) {
+        navigate(redirectTargetFromSearch, "replace")
+      }
+    }
+
     return (
       <div className="app-shell dark">
-        <AuthPanel onAuthenticated={refreshSession} />
+        {pathname === AUTH_LOGIN_PATH ? (
+          <AuthPanel onAuthenticated={handleAuthenticated} onNavigateHome={() => navigate(LANDING_PATH)} />
+        ) : (
+          <PlatformLanding onOpenAuth={() => navigate(AUTH_LOGIN_PATH)} onNavigateHome={() => navigate(LANDING_PATH)} />
+        )}
       </div>
     )
   }

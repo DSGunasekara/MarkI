@@ -216,7 +216,7 @@ export function CandidateSubmitRepository({
           <CardHeader>
             <CardTitle>GitHub App Connection</CardTitle>
             <CardDescription>
-              Install the Hiring Engine GitHub App on your repository so pushes trigger automatic rebuilds.
+              Install the Codr AI GitHub App on your repository so pushes trigger automatic rebuilds.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
