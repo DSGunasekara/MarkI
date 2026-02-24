@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { sessionQueryOptions } from "@/lib/auth"
 import type { SessionState } from "@/lib/api"
 import { WorkspaceShell } from "@/components/shared/workspace-shell"
-import type { WorkspaceNavItem } from '@/components/shared/workspace-shell'
+import { UserIcon, UploadIcon, DockIcon } from "lucide-react"
+import type { WorkspaceNavItem } from "@/components/shared/workspace-shell"
 
 export const Route = createFileRoute("/_authed")({
   beforeLoad: async ({ context, location }) => {
@@ -28,12 +29,12 @@ export const Route = createFileRoute("/_authed")({
 function AuthedLayout() {
   const { session } = Route.useRouteContext()
       const navItems: WorkspaceNavItem[] = session?.user.role === "candidate" ? [
-          { key: "dashboard", label: "Dashboard", href: "/candidate" },
-          { key: "submit-repository", label: "Submit Repository", href: "/candidate/submissions/new" },
+          { key: "dashboard", label: "Dashboard", href: "/candidate", icon: <UserIcon /> },
+          { key: "submit-repository", label: "Submit Repository", href: "/candidate/submissions/new", icon: <UploadIcon /> },
       ] : session?.user.role === "employer" ? [
-          { key: "dashboard", label: "Dashboard", href: "/employer" },
-          { key: "assignments", label: "Assignments", href: "/employer/assignments" },
-          { key: "create-assignment", label: "Create Assignment", href: "/employer/assignments/new" },
+          { key: "dashboard", label: "Dashboard", href: "/employer", icon: <UserIcon /> },
+          { key: "assignments", label: "Assignments", href: "/employer/assignments", icon: <DockIcon /> },
+          { key: "submissions", label: "Submissions", href: "/employer/submissions", icon: <UploadIcon /> },
       ] : []
   
       return <WorkspaceShell

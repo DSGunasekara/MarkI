@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { Outlet, useLocation } from "@tanstack/react-router"
+import {  useLocation } from "@tanstack/react-router"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import {
@@ -14,6 +14,7 @@ export type WorkspaceNavItem = {
   key: string
   label: string
   href: string
+  icon?: ReactNode
 }
 
 type WorkspaceShellProps = {
@@ -39,6 +40,7 @@ export function WorkspaceShell({
     label: item.label,
     href: item.href,
     isActive: location.pathname === item.href,
+    icon: item.icon,
   }))
 
   return (

@@ -15,7 +15,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 
-type NavItem = {
+export type NavItem = {
   key: string
   label: string
   icon?: React.ReactNode
