@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { RefreshCwIcon, SparklesIcon } from "lucide-react"
+import { RadioIcon, RefreshCwIcon, SparklesIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -32,6 +32,7 @@ import {
   type EmployerSubmissionExplorer,
   type EmployerSubmissionsSort
 } from "@/lib/api"
+import { useLogStream } from "@/hooks/use-log-stream"
 
 type EmployerSubmissionsExplorerProps = {
   initialAssignmentId?: string | null
@@ -90,17 +91,45 @@ export function EmployerSubmissionsExplorer({
   const [offset, setOffset] = useState(0)
 
   const [activeLogsSubmissionId, setActiveLogsSubmissionId] = useState<string | null>(null)
+  const [activeLogsSubmissionStatus, setActiveLogsSubmissionStatus] = useState<DashboardSubmissionStatus | null>(null)
   const [pipelineErrorMessage, setPipelineErrorMessage] = useState<string | null>(null)
   const [isLoadingPipeline, setIsLoadingPipeline] = useState(false)
   const [pipelineView, setPipelineView] = useState<Awaited<
     ReturnType<typeof dashboardApi.getSubmissionLogs>
   > | null>(null)
+  const [activeStreamRunId, setActiveStreamRunId] = useState<string | null>(null)
   const [activeAiSubmissionId, setActiveAiSubmissionId] = useState<string | null>(null)
   const [aiReportErrorMessage, setAiReportErrorMessage] = useState<string | null>(null)
   const [isLoadingAiReport, setIsLoadingAiReport] = useState(false)
   const [isAskingAiQuestion, setIsAskingAiQuestion] = useState(false)
   const [aiQuestionDraft, setAiQuestionDraft] = useState("")
   const [aiReportView, setAiReportView] = useState<EmployerSubmissionAiReportView | null>(null)
+
+  const logEndRef = useRef<HTMLPreElement>(null)
+
+  const shouldStream = activeLogsSubmissionId !== null &&
+    (activeLogsSubmissionStatus === "building" || activeLogsSubmissionStatus === "pending")
+
+  const logStream = useLogStream({
+    basePath: "/api/dashboard/submissions",
+    submissionId: activeLogsSubmissionId,
+    runId: activeStreamRunId,
+    enabled: shouldStream
+  })
+
+  // Auto-scroll when streaming new logs
+  useEffect(() => {
+    if (logStream.isStreaming && logEndRef.current) {
+      logEndRef.current.scrollTop = logEndRef.current.scrollHeight
+    }
+  }, [logStream.logs.length, logStream.isStreaming])
+
+  // When stream finishes, refresh submissions to update statuses
+  useEffect(() => {
+    if (logStream.runStatus === "deployed" || logStream.runStatus === "failed") {
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "submissions"] })
+    }
+  }, [logStream.runStatus, queryClient])
 
   const queryParams = useMemo(
     () => ({
@@ -213,10 +242,21 @@ export function EmployerSubmissionsExplorer({
   }
 
   const loadSubmissionLogs = useCallback(
-    async (submissionId: string, runId?: string) => {
+    async (submissionId: string, status: DashboardSubmissionStatus, runId?: string) => {
+      setActiveLogsSubmissionId(submissionId)
+      setActiveLogsSubmissionStatus(status)
+      setActiveStreamRunId(runId ?? null)
+
+      if (status === "building" || status === "pending") {
+        logStream.resetStream()
+        setPipelineView(null)
+        setPipelineErrorMessage(null)
+        setIsLoadingPipeline(false)
+        return
+      }
+
       setIsLoadingPipeline(true)
       setPipelineErrorMessage(null)
-      setActiveLogsSubmissionId(submissionId)
 
       try {
         const response = await dashboardApi.getSubmissionLogs({
@@ -230,7 +270,7 @@ export function EmployerSubmissionsExplorer({
         setIsLoadingPipeline(false)
       }
     },
-    []
+    [logStream]
   )
 
   const loadSubmissionAiReport = useCallback(async (submissionId: string) => {
@@ -494,7 +534,7 @@ export function EmployerSubmissionsExplorer({
                                 size="sm"
                                 variant="outline"
                                 onClick={() => {
-                                  void loadSubmissionLogs(submission.id)
+                                  void loadSubmissionLogs(submission.id, submission.status)
                                 }}
                               >
                                 View logs
@@ -562,17 +602,62 @@ export function EmployerSubmissionsExplorer({
         {activeLogsSubmissionId ? (
           <Card className="app-panel">
             <CardHeader>
-              <CardTitle>Pipeline Logs</CardTitle>
-              <CardDescription>
-                Review build and deployment output for the selected submission.
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Pipeline Logs</CardTitle>
+                  <CardDescription>
+                    Review build and deployment output for the selected submission.
+                  </CardDescription>
+                </div>
+                {logStream.isStreaming ? (
+                  <div className="flex items-center gap-2 rounded-full border border-border px-3 py-1">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                    </span>
+                    <span className="text-xs font-medium text-emerald-500">Streaming live</span>
+                  </div>
+                ) : null}
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
               {pipelineErrorMessage ? (
                 <p className="text-sm text-destructive">{pipelineErrorMessage}</p>
               ) : null}
 
-              {isLoadingPipeline ? (
+              {logStream.error ? (
+                <p className="text-sm text-destructive">{logStream.error}</p>
+              ) : null}
+
+              {shouldStream ? (
+                <>
+                  {logStream.logs.length > 0 ? (
+                    <div className="rounded-md border border-border bg-background/60 p-3">
+                      <pre
+                        ref={logEndRef}
+                        className="max-h-96 overflow-auto whitespace-pre-wrap text-xs text-foreground"
+                      >
+                        {logStream.logs
+                          .map((log) => `[${new Date(log.createdAt).toLocaleTimeString()}] ${log.stage.toUpperCase()} ${log.level.toUpperCase()} ${log.message}`)
+                          .join("\n")}
+                      </pre>
+                    </div>
+                  ) : logStream.isStreaming ? (
+                    <p className="text-sm text-muted-foreground">Waiting for build logs...</p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No logs available for this run yet.</p>
+                  )}
+
+                  {logStream.runStatus ? (
+                    <div className="flex items-center gap-2">
+                      <RadioIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">
+                        Run finished with status: <span className="font-medium text-foreground">{logStream.runStatus}</span>
+                      </span>
+                    </div>
+                  ) : null}
+                </>
+              ) : isLoadingPipeline ? (
                 <p className="text-sm text-muted-foreground">Loading pipeline logs...</p>
               ) : pipelineView ? (
                 <>
@@ -583,7 +668,7 @@ export function EmployerSubmissionsExplorer({
                         size="sm"
                         variant={pipelineView.selectedRun?.id === run.id ? "secondary" : "outline"}
                         onClick={() => {
-                          void loadSubmissionLogs(activeLogsSubmissionId, run.id)
+                          void loadSubmissionLogs(activeLogsSubmissionId, activeLogsSubmissionStatus!, run.id)
                         }}
                       >
                         {run.trigger}:{run.status}
