@@ -1,3 +1,5 @@
+import { Link } from "@tanstack/react-router"
+
 import { NavUser } from "@/components/nav-user"
 import {
   Sidebar,
@@ -17,8 +19,8 @@ type NavItem = {
   key: string
   label: string
   icon?: React.ReactNode
+  href: string
   isActive: boolean
-  onClick: () => void
 }
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
@@ -64,12 +66,14 @@ export function AppSidebar({
               {navItems.map((navItem) => (
                 <SidebarMenuItem key={navItem.key}>
                   <SidebarMenuButton
+                    asChild
                     isActive={navItem.isActive}
-                    onClick={navItem.onClick}
                     tooltip={navItem.label}
                   >
-                    {navItem.icon}
-                    <span>{navItem.label}</span>
+                    <Link to={navItem.href}>
+                      {navItem.icon}
+                      <span>{navItem.label}</span>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -84,4 +88,3 @@ export function AppSidebar({
     </Sidebar>
   )
 }
-

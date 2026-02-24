@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { RefreshCwIcon, SparklesIcon } from "lucide-react"
 
-import { WorkspaceShell } from "@/components/shared/workspace-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -30,15 +29,10 @@ import {
   type DashboardSubmissionStatus,
   type EmployerSubmissionAiReportView,
   type EmployerSubmissionExplorer,
-  type EmployerSubmissionsSort,
-  type SessionUser
+  type EmployerSubmissionsSort
 } from "@/lib/api"
 
 type EmployerSubmissionsExplorerProps = {
-  user: SessionUser
-  onSignOut: () => Promise<void>
-  onBackToDashboard: () => void
-  onOpenCreateAssignment: () => void
   initialAssignmentId?: string | null
 }
 
@@ -88,10 +82,6 @@ const toRepositoryHref = (repositoryUrl: string): string => {
 }
 
 export function EmployerSubmissionsExplorer({
-  user,
-  onSignOut,
-  onBackToDashboard,
-  onOpenCreateAssignment,
   initialAssignmentId
 }: EmployerSubmissionsExplorerProps) {
   const [draftFilters, setDraftFilters] = useState<ExplorerFilterDraft>(DEFAULT_FILTERS)
@@ -291,35 +281,13 @@ export function EmployerSubmissionsExplorer({
   }, [activeAiSubmissionId, aiQuestionDraft])
 
   return (
-    <WorkspaceShell
-      workspaceLabel="Employer Workspace"
-      title="Submissions Explorer"
-      description="Filter and inspect submissions grouped by assignment."
-      user={{ name: user.name, email: user.email, avatar: "" }}
-      navItems={[
-        {
-          key: "dashboard",
-          label: "Dashboard",
-          isActive: false,
-          onClick: onBackToDashboard
-        },
-        {
-          key: "create-assignment",
-          label: "Create Assignment",
-          isActive: false,
-          onClick: onOpenCreateAssignment
-        },
-        {
-          key: "submissions",
-          label: "Submissions",
-          isActive: true,
-          onClick: () => {
-            // no-op: already on submissions explorer
-          }
-        }
-      ]}
-      onSignOut={onSignOut}
-    >
+    <div className="mx-auto w-full max-w-7xl space-y-4 px-4 py-4 md:px-6 lg:px-8">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Submissions Explorer</h1>
+          <p className="text-sm text-muted-foreground">Filter and inspect submissions grouped by assignment.</p>
+        </div>
+      </div>
       <section className="space-y-4">
         <Card className="app-panel">
           <CardHeader>
@@ -837,6 +805,6 @@ export function EmployerSubmissionsExplorer({
           </Card>
         ) : null}
       </section>
-    </WorkspaceShell>
+    </div>
   )
 }

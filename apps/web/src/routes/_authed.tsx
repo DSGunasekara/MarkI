@@ -3,6 +3,8 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { sessionQueryOptions } from "@/lib/auth"
 import type { SessionState } from "@/lib/api"
+import { WorkspaceShell } from "@/components/shared/workspace-shell"
+import type { WorkspaceNavItem } from '@/components/shared/workspace-shell'
 
 export const Route = createFileRoute("/_authed")({
   beforeLoad: async ({ context, location }) => {
@@ -24,7 +26,24 @@ export const Route = createFileRoute("/_authed")({
 })
 
 function AuthedLayout() {
-  return <Outlet />
+  const { session } = Route.useRouteContext()
+      console.log({session})
+  
+      const navItems: WorkspaceNavItem[] = session?.user.role === "candidate" ? [
+          { key: "dashboard", label: "Dashboard", href: "/candidate" },
+          { key: "submit-repository", label: "Submit Repository", href: "/candidate/submissions/new" },
+      ] : session?.user.role === "employer" ? [
+          { key: "dashboard", label: "Dashboard", href: "/employer" },
+          { key: "submit-repository", label: "Submit Repository", href: "/employer/assignments/new" },
+      ] : []
+  
+      return <WorkspaceShell
+          workspaceLabel={session?.user.role === "candidate" ? "Candidate Workspace" : "Employer Workspace"}
+          session={session}
+          navItems={navItems}
+      >
+          <Outlet />
+      </WorkspaceShell>
 }
 
 function LoadingWorkspace() {

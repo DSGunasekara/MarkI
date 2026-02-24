@@ -18,5 +18,5 @@ export const sessionQueryOptions = queryOptions({
 })
 
 export const getDefaultPathForRole = (role: string): string => {
-  return role === "employer" ? "/employer/dashboard" : "/candidate/dashboard"
+  return role === "employer" ? "/employer" : "/candidate"
 }

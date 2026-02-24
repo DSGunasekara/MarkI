@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react"
+import { useNavigate } from "@tanstack/react-router"
 
-import { WorkspaceShell } from "@/components/shared/workspace-shell"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -25,21 +25,11 @@ import {
   integrationApi,
   toErrorMessage,
   type GitHubAppConfig,
-  type GitHubInstallationRepository,
-  type SessionUser
+  type GitHubInstallationRepository
 } from "@/lib/api"
 
-type CandidateSubmitRepositoryProps = {
-  user: SessionUser
-  onSignOut: () => Promise<void>
-  onBackToDashboard: () => void
-}
-
-export function CandidateSubmitRepository({
-  user,
-  onSignOut,
-  onBackToDashboard
-}: CandidateSubmitRepositoryProps) {
+export function CandidateSubmitRepository() {
+  const navigate = useNavigate()
   const [joinCode, setJoinCode] = useState("")
   const [repositoryUrl, setRepositoryUrl] = useState("")
   const [submitMessage, setSubmitMessage] = useState<string | null>(null)
@@ -187,30 +177,13 @@ export function CandidateSubmitRepository({
   }
 
   return (
-    <WorkspaceShell
-      workspaceLabel="Candidate Workspace"
-      title="Submit Repository"
-      description="Submit or resubmit your assignment repository using the join code."
-      user={{ name: user.name, email: user.email, avatar: "" }}
-      navItems={[
-        {
-          key: "dashboard",
-          label: "Dashboard",
-          isActive: false,
-          onClick: onBackToDashboard
-        },
-        {
-          key: "submit-repository",
-          label: "Submit Repository",
-          isActive: true,
-          onClick: () => {
-            // no-op: already on submit repository
-          }
-        }
-      ]}
-      onSignOut={onSignOut}
-      maxWidthClassName="max-w-4xl"
-    >
+    <div className="mx-auto w-full max-w-4xl space-y-4 px-4 py-4 md:px-6 lg:px-8">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Submit Repository</h1>
+          <p className="text-sm text-muted-foreground">Submit or resubmit your assignment repository using the join code.</p>
+        </div>
+      </div>
       <section className="space-y-4">
         <Card className="app-panel">
           <CardHeader>
@@ -382,7 +355,7 @@ export function CandidateSubmitRepository({
                 >
                   {isSubmitting ? "Submitting..." : "Submit repository"}
                 </Button>
-                <Button type="button" variant="outline" onClick={onBackToDashboard}>
+                <Button type="button" variant="outline" onClick={() => void navigate({ to: "/candidate" })}>
                   Cancel
                 </Button>
               </div>
@@ -395,6 +368,6 @@ export function CandidateSubmitRepository({
           </CardFooter>
         </Card>
       </section>
-    </WorkspaceShell>
+    </div>
   )
 }

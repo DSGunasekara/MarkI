@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useNavigate } from "@tanstack/react-router"
 import { RefreshCwIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -11,21 +12,12 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card"
-import { WorkspaceShell } from "@/components/shared/workspace-shell"
 import {
   dashboardApi,
   toErrorMessage,
   type DashboardOverview,
-  type DashboardSubmissionStatus,
-  type SessionUser
+  type DashboardSubmissionStatus
 } from "@/lib/api"
-
-type EmployerDashboardProps = {
-  user: SessionUser
-  onSignOut: () => Promise<void>
-  onOpenCreateAssignment: () => void
-  onOpenSubmissionsExplorer: (assignmentId?: string) => void
-}
 
 type OverviewLoadMode = "initial" | "refresh"
 
@@ -54,12 +46,8 @@ const toRepositoryHref = (repositoryUrl: string): string => {
   return `https://${repositoryUrl}`
 }
 
-export function EmployerDashboard({
-  user,
-  onSignOut,
-  onOpenCreateAssignment,
-  onOpenSubmissionsExplorer
-}: EmployerDashboardProps) {
+export function EmployerDashboard() {
+  const navigate = useNavigate()
   const [overview, setOverview] = useState<DashboardOverview | null>(null)
   const [overviewErrorMessage, setOverviewErrorMessage] = useState<string | null>(null)
   const [isLoadingOverview, setIsLoadingOverview] = useState(true)
@@ -116,48 +104,26 @@ export function EmployerDashboard({
   }, [overview])
 
   return (
-    <WorkspaceShell
-      workspaceLabel="Employer Workspace"
-      title="Dashboard"
-      description="Monitor assignment activity and recent submission pipeline updates."
-      user={{ name: user.name, email: user.email, avatar: "" }}
-      navItems={[
-        {
-          key: "dashboard",
-          label: "Dashboard",
-          isActive: true,
-          onClick: () => {
-            // no-op: already on dashboard
-          }
-        },
-        {
-          key: "create-assignment",
-          label: "Create Assignment",
-          isActive: false,
-          onClick: onOpenCreateAssignment
-        },
-        {
-          key: "submissions",
-          label: "Submissions",
-          isActive: false,
-          onClick: () => onOpenSubmissionsExplorer()
-        }
-      ]}
-      onSignOut={onSignOut}
-      headerActions={
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            void loadOverview("refresh")
-          }}
-          disabled={isRefreshingOverview}
-        >
-          <RefreshCwIcon className={isRefreshingOverview ? "animate-spin" : ""} />
-          Refresh
-        </Button>
-      }
-    >
+    <div className="mx-auto w-full max-w-7xl space-y-4 px-4 py-4 md:px-6 lg:px-8">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Monitor assignment activity and recent submission pipeline updates.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              void loadOverview("refresh")
+            }}
+            disabled={isRefreshingOverview}
+          >
+            <RefreshCwIcon className={isRefreshingOverview ? "animate-spin" : ""} />
+            Refresh
+          </Button>
+        </div>
+      </div>
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <Card className="app-panel">
           <CardContent className="space-y-1 py-4">
@@ -232,7 +198,7 @@ export function EmployerDashboard({
                           <button
                             type="button"
                             className="cursor-pointer text-left font-medium text-foreground underline decoration-transparent underline-offset-2 transition hover:text-primary hover:decoration-primary"
-                            onClick={() => onOpenSubmissionsExplorer(assignment.id)}
+                            onClick={() => void navigate({ to: "/employer/submissions", search: { assignmentId: assignment.id } })}
                           >
                             {assignment.title}
                           </button>
@@ -258,10 +224,10 @@ export function EmployerDashboard({
           </CardContent>
           <CardFooter>
             <div className="flex items-center gap-2">
-              <Button size="sm" onClick={onOpenCreateAssignment}>
+              <Button size="sm" onClick={() => void navigate({ to: "/employer/assignments/new" })}>
                 Create assignment
               </Button>
-              <Button size="sm" variant="outline" onClick={() => onOpenSubmissionsExplorer()}>
+              <Button size="sm" variant="outline" onClick={() => void navigate({ to: "/employer/submissions" })}>
                 View all submissions
               </Button>
             </div>
@@ -323,6 +289,6 @@ export function EmployerDashboard({
           </CardContent>
         </Card>
       </section>
-    </WorkspaceShell>
+    </div>
   )
 }
