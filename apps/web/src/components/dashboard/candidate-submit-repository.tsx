@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react"
 import { useNavigate } from "@tanstack/react-router"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -24,25 +25,33 @@ import {
   candidateApi,
   integrationApi,
   toErrorMessage,
-  type GitHubAppConfig,
   type GitHubInstallationRepository
 } from "@/lib/api"
 
 export function CandidateSubmitRepository() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+
   const [joinCode, setJoinCode] = useState("")
   const [repositoryUrl, setRepositoryUrl] = useState("")
   const [submitMessage, setSubmitMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [githubAppConfig, setGitHubAppConfig] = useState<GitHubAppConfig | null>(null)
-  const [isLoadingGitHubAppConfig, setIsLoadingGitHubAppConfig] = useState(true)
-  const [gitHubAppConfigError, setGitHubAppConfigError] = useState<string | null>(null)
   const [installationId, setInstallationId] = useState("")
   const [repositories, setRepositories] = useState<GitHubInstallationRepository[]>([])
   const [selectedRepositoryFullName, setSelectedRepositoryFullName] = useState("")
   const [repositoriesErrorMessage, setRepositoriesErrorMessage] = useState<string | null>(null)
   const [isLoadingRepositories, setIsLoadingRepositories] = useState(false)
+
+  const {
+    data: githubAppConfig,
+    isLoading: isLoadingGitHubAppConfig,
+    error: gitHubAppConfigQueryError
+  } = useQuery({
+    queryKey: ["integrations", "github-app-config"],
+    queryFn: () => integrationApi.getGitHubAppConfig()
+  })
+
+  const gitHubAppConfigError = gitHubAppConfigQueryError ? toErrorMessage(gitHubAppConfigQueryError) : null
 
   const isGitHubAppSelectionMode = Boolean(githubAppConfig?.isConfigured)
   const selectedRepository = useMemo(() => {
@@ -91,42 +100,49 @@ export function CandidateSubmitRepository() {
   }, [installationId])
 
   useEffect(() => {
-    const timerId = window.setTimeout(() => {
-      void (async () => {
-        setIsLoadingGitHubAppConfig(true)
-        setGitHubAppConfigError(null)
-
-        try {
-          const config = await integrationApi.getGitHubAppConfig()
-          setGitHubAppConfig(config)
-
-          if (config.isConfigured) {
-            const params = new URLSearchParams(window.location.search)
-            const installationIdFromQuery = params.get("installation_id")
-            if (installationIdFromQuery && /^\d+$/.test(installationIdFromQuery)) {
-              setInstallationId(installationIdFromQuery)
-              await loadRepositories(installationIdFromQuery)
-
-              const nextUrl = window.location.pathname
-              window.history.replaceState({}, "", nextUrl)
-            } else {
-              await loadRepositories()
-            }
-          }
-        } catch (error: unknown) {
-          setGitHubAppConfigError(toErrorMessage(error))
-        } finally {
-          setIsLoadingGitHubAppConfig(false)
-        }
-      })()
-    }, 0)
-
-    return () => {
-      window.clearTimeout(timerId)
+    if (!githubAppConfig?.isConfigured) {
+      return
     }
-  }, [loadRepositories])
 
-  const handleSubmitRepository = async (event: FormEvent<HTMLFormElement>) => {
+    const params = new URLSearchParams(window.location.search)
+    const installationIdFromQuery = params.get("installation_id")
+    if (installationIdFromQuery && /^\d+$/.test(installationIdFromQuery)) {
+      setInstallationId(installationIdFromQuery)
+      void loadRepositories(installationIdFromQuery)
+
+      const nextUrl = window.location.pathname
+      window.history.replaceState({}, "", nextUrl)
+    } else {
+      void loadRepositories()
+    }
+  }, [githubAppConfig?.isConfigured, loadRepositories])
+
+  const submitMutation = useMutation({
+    mutationFn: async (input: {
+      joinCode: string
+      repositoryUrl?: string
+      repositoryFullName?: string
+      githubInstallationId?: string
+    }) => {
+      return candidateApi.submitRepository(input)
+    },
+    onSuccess: (submissionResult) => {
+      setJoinCode("")
+      setRepositoryUrl("")
+      setSubmitMessage(
+        submissionResult.isResubmission
+          ? `Resubmitted for ${submissionResult.assignmentTitle}. Build queued (${submissionResult.pipelineRunId.slice(0, 8)}).`
+          : `Submitted for ${submissionResult.assignmentTitle} (${submissionResult.joinCode}). Build queued (${submissionResult.pipelineRunId.slice(0, 8)}).`
+      )
+
+      void queryClient.invalidateQueries({ queryKey: ["candidate"] })
+    },
+    onError: (error: unknown) => {
+      setErrorMessage(toErrorMessage(error))
+    }
+  })
+
+  const handleSubmitRepository = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
     const normalizedJoinCode = joinCode.trim().toUpperCase()
@@ -147,32 +163,19 @@ export function CandidateSubmitRepository() {
 
     setErrorMessage(null)
     setSubmitMessage(null)
-    setIsSubmitting(true)
 
-    try {
-      const submissionResult = isGitHubAppSelectionMode
-        ? await candidateApi.submitRepository({
-            joinCode: normalizedJoinCode,
-            repositoryFullName: selectedRepositoryFullName,
-            githubInstallationId:
-              installationId.trim().length > 0 ? installationId.trim() : undefined
-          })
-        : await candidateApi.submitRepository({
-            joinCode: normalizedJoinCode,
-            repositoryUrl: repositoryUrl.trim()
-          })
-
-      setJoinCode("")
-      setRepositoryUrl("")
-      setSubmitMessage(
-        submissionResult.isResubmission
-          ? `Resubmitted for ${submissionResult.assignmentTitle}. Build queued (${submissionResult.pipelineRunId.slice(0, 8)}).`
-          : `Submitted for ${submissionResult.assignmentTitle} (${submissionResult.joinCode}). Build queued (${submissionResult.pipelineRunId.slice(0, 8)}).`
-      )
-    } catch (error: unknown) {
-      setErrorMessage(toErrorMessage(error))
-    } finally {
-      setIsSubmitting(false)
+    if (isGitHubAppSelectionMode) {
+      submitMutation.mutate({
+        joinCode: normalizedJoinCode,
+        repositoryFullName: selectedRepositoryFullName,
+        githubInstallationId:
+          installationId.trim().length > 0 ? installationId.trim() : undefined
+      })
+    } else {
+      submitMutation.mutate({
+        joinCode: normalizedJoinCode,
+        repositoryUrl: repositoryUrl.trim()
+      })
     }
   }
 
@@ -349,11 +352,11 @@ export function CandidateSubmitRepository() {
                   type="submit"
                   className="h-10"
                   disabled={
-                    isSubmitting ||
+                    submitMutation.isPending ||
                     (isGitHubAppSelectionMode && selectedRepositoryFullName.length === 0)
                   }
                 >
-                  {isSubmitting ? "Submitting..." : "Submit repository"}
+                  {submitMutation.isPending ? "Submitting..." : "Submit repository"}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => void navigate({ to: "/candidate" })}>
                   Cancel

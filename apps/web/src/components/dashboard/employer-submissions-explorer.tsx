@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { RefreshCwIcon, SparklesIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -43,8 +44,6 @@ type ExplorerFilterDraft = {
   sort: EmployerSubmissionsSort
 }
 
-type LoadMode = "initial" | "refresh"
-
 type SubmissionBadgeVariant = "default" | "secondary" | "destructive" | "outline"
 
 const DEFAULT_LIMIT = 30
@@ -84,14 +83,12 @@ const toRepositoryHref = (repositoryUrl: string): string => {
 export function EmployerSubmissionsExplorer({
   initialAssignmentId
 }: EmployerSubmissionsExplorerProps) {
+  const queryClient = useQueryClient()
+
   const [draftFilters, setDraftFilters] = useState<ExplorerFilterDraft>(DEFAULT_FILTERS)
   const [activeFilters, setActiveFilters] = useState<ExplorerFilterDraft>(DEFAULT_FILTERS)
   const [offset, setOffset] = useState(0)
 
-  const [explorerData, setExplorerData] = useState<EmployerSubmissionExplorer | null>(null)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isRefreshing, setIsRefreshing] = useState(false)
   const [activeLogsSubmissionId, setActiveLogsSubmissionId] = useState<string | null>(null)
   const [pipelineErrorMessage, setPipelineErrorMessage] = useState<string | null>(null)
   const [isLoadingPipeline, setIsLoadingPipeline] = useState(false)
@@ -105,17 +102,26 @@ export function EmployerSubmissionsExplorer({
   const [aiQuestionDraft, setAiQuestionDraft] = useState("")
   const [aiReportView, setAiReportView] = useState<EmployerSubmissionAiReportView | null>(null)
 
-  const fetchExplorerData = useCallback(async (mode: LoadMode) => {
-    if (mode === "initial") {
-      setIsLoading(true)
-    } else {
-      setIsRefreshing(true)
-    }
+  const queryParams = useMemo(
+    () => ({
+      assignmentId: activeFilters.assignmentId,
+      status: activeFilters.status,
+      search: activeFilters.search,
+      sort: activeFilters.sort,
+      offset
+    }),
+    [activeFilters, offset]
+  )
 
-    setErrorMessage(null)
-
-    try {
-      const response = await dashboardApi.getSubmissions({
+  const {
+    data: explorerData,
+    error,
+    isLoading,
+    isFetching
+  } = useQuery({
+    queryKey: ["dashboard", "submissions", queryParams],
+    queryFn: () =>
+      dashboardApi.getSubmissions({
         assignmentId: activeFilters.assignmentId === "all" ? undefined : activeFilters.assignmentId,
         status: activeFilters.status === "all" ? undefined : activeFilters.status,
         search: activeFilters.search,
@@ -123,28 +129,9 @@ export function EmployerSubmissionsExplorer({
         limit: DEFAULT_LIMIT,
         offset
       })
+  })
 
-      setExplorerData(response)
-    } catch (error: unknown) {
-      setErrorMessage(toErrorMessage(error))
-    } finally {
-      if (mode === "initial") {
-        setIsLoading(false)
-      } else {
-        setIsRefreshing(false)
-      }
-    }
-  }, [activeFilters, offset])
-
-  useEffect(() => {
-    const timerId = window.setTimeout(() => {
-      void fetchExplorerData("initial")
-    }, 0)
-
-    return () => {
-      window.clearTimeout(timerId)
-    }
-  }, [fetchExplorerData])
+  const errorMessage = error ? toErrorMessage(error) : null
 
   useEffect(() => {
     const nextAssignmentId = initialAssignmentId ?? "all"
@@ -217,6 +204,12 @@ export function EmployerSubmissionsExplorer({
     setOffset(0)
     setDraftFilters(DEFAULT_FILTERS)
     setActiveFilters(DEFAULT_FILTERS)
+  }
+
+  const handleRefresh = () => {
+    void queryClient.invalidateQueries({
+      queryKey: ["dashboard", "submissions"]
+    })
   }
 
   const loadSubmissionLogs = useCallback(
@@ -411,12 +404,10 @@ export function EmployerSubmissionsExplorer({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  void fetchExplorerData("refresh")
-                }}
-                disabled={isRefreshing}
+                onClick={handleRefresh}
+                disabled={isFetching}
               >
-                <RefreshCwIcon className={isRefreshing ? "animate-spin" : ""} />
+                <RefreshCwIcon className={isFetching ? "animate-spin" : ""} />
                 Refresh
               </Button>
             </div>
@@ -429,7 +420,7 @@ export function EmployerSubmissionsExplorer({
           </Card>
         ) : null}
 
-        {isLoading && !explorerData ? (
+        {isLoading ? (
           <Card className="app-panel">
             <CardContent className="py-6 text-sm text-muted-foreground">Loading submissions...</CardContent>
           </Card>

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useMemo } from "react"
 import { useNavigate } from "@tanstack/react-router"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { RefreshCwIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -15,11 +16,8 @@ import {
 import {
   dashboardApi,
   toErrorMessage,
-  type DashboardOverview,
   type DashboardSubmissionStatus
 } from "@/lib/api"
-
-type OverviewLoadMode = "initial" | "refresh"
 
 type SubmissionBadgeVariant = "default" | "secondary" | "destructive" | "outline"
 
@@ -48,47 +46,23 @@ const toRepositoryHref = (repositoryUrl: string): string => {
 
 export function EmployerDashboard() {
   const navigate = useNavigate()
-  const [overview, setOverview] = useState<DashboardOverview | null>(null)
-  const [overviewErrorMessage, setOverviewErrorMessage] = useState<string | null>(null)
-  const [isLoadingOverview, setIsLoadingOverview] = useState(true)
-  const [isRefreshingOverview, setIsRefreshingOverview] = useState(false)
+  const queryClient = useQueryClient()
 
-  const loadOverview = useCallback(async (mode: OverviewLoadMode) => {
-    if (mode === "initial") {
-      setIsLoadingOverview(true)
-    } else {
-      setIsRefreshingOverview(true)
-    }
-
-    setOverviewErrorMessage(null)
-
-    try {
-      const response = await dashboardApi.getOverview({
+  const {
+    data: overview,
+    error,
+    isLoading,
+    isFetching
+  } = useQuery({
+    queryKey: ["dashboard", "overview"],
+    queryFn: () =>
+      dashboardApi.getOverview({
         assignmentsLimit: 5,
         submissionsLimit: 5
       })
+  })
 
-      setOverview(response)
-    } catch (error: unknown) {
-      setOverviewErrorMessage(toErrorMessage(error))
-    } finally {
-      if (mode === "initial") {
-        setIsLoadingOverview(false)
-      } else {
-        setIsRefreshingOverview(false)
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    const timerId = window.setTimeout(() => {
-      void loadOverview("initial")
-    }, 0)
-
-    return () => {
-      window.clearTimeout(timerId)
-    }
-  }, [loadOverview])
+  const errorMessage = error ? toErrorMessage(error) : null
 
   const metrics = useMemo(() => {
     return (
@@ -103,6 +77,12 @@ export function EmployerDashboard() {
     )
   }, [overview])
 
+  const handleRefresh = () => {
+    void queryClient.invalidateQueries({
+      queryKey: ["dashboard", "overview"]
+    })
+  }
+
   return (
     <div className="mx-auto w-full max-w-7xl space-y-4 px-4 py-4 md:px-6 lg:px-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -114,12 +94,10 @@ export function EmployerDashboard() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
-              void loadOverview("refresh")
-            }}
-            disabled={isRefreshingOverview}
+            onClick={handleRefresh}
+            disabled={isFetching}
           >
-            <RefreshCwIcon className={isRefreshingOverview ? "animate-spin" : ""} />
+            <RefreshCwIcon className={isFetching ? "animate-spin" : ""} />
             Refresh
           </Button>
         </div>
@@ -163,9 +141,9 @@ export function EmployerDashboard() {
         </Card>
       </section>
 
-      {overviewErrorMessage ? (
+      {errorMessage ? (
         <Card className="border-destructive/50 bg-destructive/10">
-          <CardContent className="py-3 text-sm text-destructive">{overviewErrorMessage}</CardContent>
+          <CardContent className="py-3 text-sm text-destructive">{errorMessage}</CardContent>
         </Card>
       ) : null}
 
@@ -178,7 +156,7 @@ export function EmployerDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoadingOverview && !overview ? (
+            {isLoading ? (
               <p className="text-sm text-muted-foreground">Loading assignments...</p>
             ) : overview && overview.recentAssignments.length > 0 ? (
               <div className="overflow-x-auto">
@@ -245,7 +223,7 @@ export function EmployerDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoadingOverview && !overview ? (
+            {isLoading ? (
               <p className="text-sm text-muted-foreground">Loading submissions...</p>
             ) : overview && overview.recentSubmissions.length > 0 ? (
               <div className="overflow-x-auto">

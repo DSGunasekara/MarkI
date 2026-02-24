@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { ClipboardCopyIcon, PlusIcon, RefreshCwIcon, SearchIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -25,11 +26,8 @@ import {
 import {
   dashboardApi,
   toErrorMessage,
-  type EmployerAssignmentExplorer,
   type EmployerSubmissionsSort
 } from "@/lib/api"
-
-type LoadMode = "initial" | "refresh"
 
 const DEFAULT_LIMIT = 10
 
@@ -41,61 +39,44 @@ const formatDateTime = (value: string | null): string => {
   return new Date(value).toLocaleString()
 }
 
+const assignmentsQueryKey = (params: {
+  search: string
+  sort: EmployerSubmissionsSort
+  offset: number
+}) => ["dashboard", "assignments", params] as const
+
 export function EmployerAssignmentsList() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const [searchDraft, setSearchDraft] = useState("")
   const [activeSearch, setActiveSearch] = useState("")
   const [sort, setSort] = useState<EmployerSubmissionsSort>("newest")
   const [offset, setOffset] = useState(0)
-
-  const [explorerData, setExplorerData] = useState<EmployerAssignmentExplorer | null>(null)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isRefreshing, setIsRefreshing] = useState(false)
   const [copiedJoinCode, setCopiedJoinCode] = useState<string | null>(null)
 
-  const fetchAssignments = useCallback(
-    async (mode: LoadMode) => {
-      if (mode === "initial") {
-        setIsLoading(true)
-      } else {
-        setIsRefreshing(true)
-      }
-
-      setErrorMessage(null)
-
-      try {
-        const response = await dashboardApi.getAssignments({
-          search: activeSearch,
-          sort,
-          limit: DEFAULT_LIMIT,
-          offset
-        })
-
-        setExplorerData(response)
-      } catch (error: unknown) {
-        setErrorMessage(toErrorMessage(error))
-      } finally {
-        if (mode === "initial") {
-          setIsLoading(false)
-        } else {
-          setIsRefreshing(false)
-        }
-      }
-    },
+  const queryParams = useMemo(
+    () => ({ search: activeSearch, sort, offset }),
     [activeSearch, sort, offset]
   )
 
-  useEffect(() => {
-    const timerId = window.setTimeout(() => {
-      void fetchAssignments("initial")
-    }, 0)
+  const {
+    data: explorerData,
+    error,
+    isLoading,
+    isFetching
+  } = useQuery({
+    queryKey: assignmentsQueryKey(queryParams),
+    queryFn: () =>
+      dashboardApi.getAssignments({
+        search: activeSearch || undefined,
+        sort,
+        limit: DEFAULT_LIMIT,
+        offset
+      })
+  })
 
-    return () => {
-      window.clearTimeout(timerId)
-    }
-  }, [fetchAssignments])
+  const errorMessage = error ? toErrorMessage(error) : null
 
   const hasNextPage = useMemo(() => {
     if (!explorerData) {
@@ -115,6 +96,12 @@ export function EmployerAssignmentsList() {
     setSearchDraft("")
     setActiveSearch("")
     setSort("newest")
+  }
+
+  const handleRefresh = () => {
+    void queryClient.invalidateQueries({
+      queryKey: ["dashboard", "assignments"]
+    })
   }
 
   const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -148,12 +135,10 @@ export function EmployerAssignmentsList() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
-              void fetchAssignments("refresh")
-            }}
-            disabled={isRefreshing}
+            onClick={handleRefresh}
+            disabled={isFetching}
           >
-            <RefreshCwIcon className={isRefreshing ? "animate-spin" : ""} />
+            <RefreshCwIcon className={isFetching ? "animate-spin" : ""} />
             Refresh
           </Button>
           <Button
@@ -238,7 +223,7 @@ export function EmployerAssignmentsList() {
       ) : null}
 
       {/* Assignment list */}
-      {isLoading && !explorerData ? (
+      {isLoading ? (
         <Card className="app-panel">
           <CardContent className="py-6 text-sm text-muted-foreground">Loading assignments...</CardContent>
         </Card>

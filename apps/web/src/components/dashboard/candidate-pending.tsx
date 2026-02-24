@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { RefreshCwIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -13,11 +14,8 @@ import {
 import {
   candidateApi,
   toErrorMessage,
-  type CandidateOverview,
   type DashboardSubmissionStatus
 } from "@/lib/api"
-
-type OverviewLoadMode = "initial" | "refresh"
 
 type SubmissionBadgeVariant = "default" | "secondary" | "destructive" | "outline"
 
@@ -41,10 +39,8 @@ const toRepositoryHref = (repositoryUrl: string): string => {
 }
 
 export function CandidatePending() {
-  const [overview, setOverview] = useState<CandidateOverview | null>(null)
-  const [overviewErrorMessage, setOverviewErrorMessage] = useState<string | null>(null)
-  const [isLoadingOverview, setIsLoadingOverview] = useState(true)
-  const [isRefreshingOverview, setIsRefreshingOverview] = useState(false)
+  const queryClient = useQueryClient()
+
   const [activeLogsSubmissionId, setActiveLogsSubmissionId] = useState<string | null>(null)
   const [pipelineErrorMessage, setPipelineErrorMessage] = useState<string | null>(null)
   const [isLoadingPipeline, setIsLoadingPipeline] = useState(false)
@@ -52,38 +48,17 @@ export function CandidatePending() {
     ReturnType<typeof candidateApi.getSubmissionLogs>
   > | null>(null)
 
-  const loadOverview = useCallback(async (mode: OverviewLoadMode) => {
-    if (mode === "initial") {
-      setIsLoadingOverview(true)
-    } else {
-      setIsRefreshingOverview(true)
-    }
+  const {
+    data: overview,
+    error,
+    isLoading,
+    isFetching
+  } = useQuery({
+    queryKey: ["candidate", "overview"],
+    queryFn: () => candidateApi.getOverview({ submissionsLimit: 12 })
+  })
 
-    setOverviewErrorMessage(null)
-
-    try {
-      const response = await candidateApi.getOverview({ submissionsLimit: 12 })
-      setOverview(response)
-    } catch (error: unknown) {
-      setOverviewErrorMessage(toErrorMessage(error))
-    } finally {
-      if (mode === "initial") {
-        setIsLoadingOverview(false)
-      } else {
-        setIsRefreshingOverview(false)
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    const timerId = window.setTimeout(() => {
-      void loadOverview("initial")
-    }, 0)
-
-    return () => {
-      window.clearTimeout(timerId)
-    }
-  }, [loadOverview])
+  const errorMessage = error ? toErrorMessage(error) : null
 
   const metrics = useMemo(() => {
     return (
@@ -96,6 +71,12 @@ export function CandidatePending() {
       }
     )
   }, [overview])
+
+  const handleRefresh = () => {
+    void queryClient.invalidateQueries({
+      queryKey: ["candidate", "overview"]
+    })
+  }
 
   const loadSubmissionLogs = useCallback(
     async (submissionId: string, runId?: string) => {
@@ -129,12 +110,10 @@ export function CandidatePending() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
-              void loadOverview("refresh")
-            }}
-            disabled={isRefreshingOverview}
+            onClick={handleRefresh}
+            disabled={isFetching}
           >
-            <RefreshCwIcon className={isRefreshingOverview ? "animate-spin" : ""} />
+            <RefreshCwIcon className={isFetching ? "animate-spin" : ""} />
             Refresh
           </Button>
         </div>
@@ -173,9 +152,9 @@ export function CandidatePending() {
           </Card>
         </section>
 
-        {overviewErrorMessage ? (
+        {errorMessage ? (
           <Card className="border-destructive/50 bg-destructive/10">
-            <CardContent className="py-3 text-sm text-destructive">{overviewErrorMessage}</CardContent>
+            <CardContent className="py-3 text-sm text-destructive">{errorMessage}</CardContent>
           </Card>
         ) : null}
 
@@ -185,7 +164,7 @@ export function CandidatePending() {
             <CardDescription>Track your assignment submissions and runner status updates.</CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoadingOverview && !overview ? (
+            {isLoading ? (
               <p className="text-sm text-muted-foreground">Loading submissions...</p>
             ) : overview && overview.recentSubmissions.length > 0 ? (
               <div className="overflow-x-auto">
