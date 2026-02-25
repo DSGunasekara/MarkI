@@ -12,6 +12,13 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -598,29 +605,30 @@ export function EmployerSubmissionsExplorer({
             </div>
           </CardContent>
         </Card>
+      </section>
 
-        {activeLogsSubmissionId ? (
-          <Card className="app-panel">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Pipeline Logs</CardTitle>
-                  <CardDescription>
-                    Review build and deployment output for the selected submission.
-                  </CardDescription>
-                </div>
-                {logStream.isStreaming ? (
-                  <div className="flex items-center gap-2 rounded-full border border-border px-3 py-1">
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                    </span>
-                    <span className="text-xs font-medium text-emerald-500">Streaming live</span>
-                  </div>
-                ) : null}
+      <Dialog open={!!activeLogsSubmissionId} onOpenChange={(open) => !open && setActiveLogsSubmissionId(null)}>
+        <DialogContent className="sm:max-w-[95vw] lg:max-w-6xl w-[95vw] h-[95vh] sm:h-[90vh] flex flex-col overflow-hidden">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>Pipeline Logs</DialogTitle>
+                <DialogDescription>
+                  Review build and deployment output for the selected submission.
+                </DialogDescription>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
+              {logStream.isStreaming ? (
+                <div className="flex items-center gap-2 rounded-full border border-border px-3 py-1">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                  </span>
+                  <span className="text-xs font-medium text-emerald-500">Streaming live</span>
+                </div>
+              ) : null}
+            </div>
+          </DialogHeader>
+          <div className="flex-1 flex flex-col min-h-0 overflow-y-auto space-y-3 px-1 pb-4">
               {pipelineErrorMessage ? (
                 <p className="text-sm text-destructive">{pipelineErrorMessage}</p>
               ) : null}
@@ -632,10 +640,10 @@ export function EmployerSubmissionsExplorer({
               {shouldStream ? (
                 <>
                   {logStream.logs.length > 0 ? (
-                    <div className="rounded-md border border-border bg-background/60 p-3">
+                    <div className="rounded-md border border-border bg-background/60 flex-1 min-h-0 flex flex-col overflow-hidden">
                       <pre
                         ref={logEndRef}
-                        className="max-h-96 overflow-auto whitespace-pre-wrap text-xs text-foreground"
+                        className="flex-1 overflow-auto whitespace-pre-wrap p-3 text-xs text-foreground"
                       >
                         {logStream.logs
                           .map((log) => `[${new Date(log.createdAt).toLocaleTimeString()}] ${log.stage.toUpperCase()} ${log.level.toUpperCase()} ${log.message}`)
@@ -668,7 +676,9 @@ export function EmployerSubmissionsExplorer({
                         size="sm"
                         variant={pipelineView.selectedRun?.id === run.id ? "secondary" : "outline"}
                         onClick={() => {
-                          void loadSubmissionLogs(activeLogsSubmissionId, activeLogsSubmissionStatus!, run.id)
+                          if (activeLogsSubmissionId && activeLogsSubmissionStatus) {
+                            void loadSubmissionLogs(activeLogsSubmissionId, activeLogsSubmissionStatus, run.id)
+                          }
                         }}
                       >
                         {run.trigger}:{run.status}
@@ -676,8 +686,8 @@ export function EmployerSubmissionsExplorer({
                     ))}
                   </div>
 
-                  <div className="rounded-md border border-border bg-background/60 p-3">
-                    <pre className="max-h-96 overflow-auto whitespace-pre-wrap text-xs text-foreground">
+                  <div className="rounded-md border border-border bg-background/60 flex-1 min-h-0 flex flex-col overflow-hidden">
+                    <pre className="flex-1 overflow-auto whitespace-pre-wrap p-3 text-xs text-foreground">
                       {pipelineView.logs.length > 0
                         ? pipelineView.logs
                             .map((log) => `[${new Date(log.createdAt).toLocaleTimeString()}] ${log.stage.toUpperCase()} ${log.level.toUpperCase()} ${log.message}`)
@@ -689,19 +699,19 @@ export function EmployerSubmissionsExplorer({
               ) : (
                 <p className="text-sm text-muted-foreground">No pipeline data available.</p>
               )}
-            </CardContent>
-          </Card>
-        ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
 
-        {activeAiSubmissionId ? (
-          <Card className="app-panel">
-            <CardHeader>
-              <CardTitle>AI Performance Report</CardTitle>
-              <CardDescription>
-                Candidate analysis and employer follow-up Q&A grounded in repository evidence.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+      <Dialog open={!!activeAiSubmissionId} onOpenChange={(open) => !open && setActiveAiSubmissionId(null)}>
+        <DialogContent className="sm:max-w-[95vw] lg:max-w-4xl w-[95vw] max-h-[90vh] flex flex-col overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>AI Performance Report</DialogTitle>
+            <DialogDescription>
+              Candidate analysis and employer follow-up Q&A grounded in repository evidence.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto min-h-0 space-y-4 px-1 pb-4">
               {aiReportErrorMessage ? (
                 <p className="text-sm text-destructive">{aiReportErrorMessage}</p>
               ) : null}
@@ -726,7 +736,9 @@ export function EmployerSubmissionsExplorer({
                       size="sm"
                       variant="outline"
                       onClick={() => {
-                        void loadSubmissionAiReport(activeAiSubmissionId)
+                        if (activeAiSubmissionId) {
+                          void loadSubmissionAiReport(activeAiSubmissionId)
+                        }
                       }}
                       disabled={isLoadingAiReport}
                     >
@@ -877,10 +889,9 @@ export function EmployerSubmissionsExplorer({
               ) : (
                 <p className="text-sm text-muted-foreground">No AI report data available.</p>
               )}
-            </CardContent>
-          </Card>
-        ) : null}
-      </section>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
