@@ -62,7 +62,7 @@ export function CandidateSubmissionLogStream({
   const hasLogs = logsToDisplay.length > 0
 
   return (
-    <div className="flex flex-col h-full space-y-3">
+    <div className="flex flex-col h-full space-y-3 min-h-0">
       <div className="flex items-center justify-between">
         {logStream.isStreaming ? (
           <div className="flex items-center gap-2 rounded-full border border-border px-3 py-1 mt-2">
@@ -75,7 +75,7 @@ export function CandidateSubmissionLogStream({
         ) : null}
       </div>
 
-      <div className="flex-1 rounded-md border border-border bg-background/60 flex flex-col min-h-[50vh] overflow-hidden">
+      <div className="flex-1 rounded-md border border-border bg-background/60 flex flex-col min-h-0 overflow-hidden">
         {hasLogs ? (
           <pre
             ref={logEndRef}
