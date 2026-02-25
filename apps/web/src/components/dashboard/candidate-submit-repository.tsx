@@ -35,6 +35,28 @@ export function CandidateSubmitRepository() {
   const [repositoryUrl, setRepositoryUrl] = useState("")
   const [submitMessage, setSubmitMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const [debouncedJoinCode, setDebouncedJoinCode] = useState("")
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedJoinCode(joinCode.trim().toUpperCase())
+    }, 500)
+    return () => clearTimeout(handler)
+  }, [joinCode])
+
+  const isValidJoinCode = debouncedJoinCode.length >= 4
+
+  const {
+    data: assignmentPreview,
+    isLoading: isLoadingAssignmentPreview,
+    error: assignmentPreviewError
+  } = useQuery({
+    queryKey: ["candidate", "assignment-preview", debouncedJoinCode],
+    queryFn: () => candidateApi.getAssignmentByJoinCode(debouncedJoinCode),
+    enabled: isValidJoinCode,
+    retry: false
+  })
   
   const initialInstallationId = useMemo(() => {
     if (typeof window === "undefined") return ""
@@ -323,6 +345,32 @@ export function CandidateSubmitRepository() {
                   required
                 />
               </div>
+
+              {joinCode.length > 0 ? (
+                <div className="rounded-md border p-4 bg-muted/20 min-h-[5rem] flex flex-col justify-center">
+                  {!isValidJoinCode ? (
+                    <p className="text-sm text-muted-foreground text-center">
+                      Keep typing to search for assignment...
+                    </p>
+                  ) : isLoadingAssignmentPreview ? (
+                    <p className="text-sm text-muted-foreground text-center animate-pulse">
+                      Loading assignment details...
+                    </p>
+                  ) : assignmentPreviewError ? (
+                    <p className="text-sm text-destructive text-center">
+                      Join code not found or invalid. Please check and try again.
+                    </p>
+                  ) : assignmentPreview ? (
+                    <div className="space-y-2">
+                      <h3 className="font-semibold text-foreground">{assignmentPreview.title}</h3>
+                      <div className="text-sm text-muted-foreground prose prose-sm max-w-none dark:prose-invert break-words line-clamp-4">
+                        {assignmentPreview.instructions || "No instructions provided."}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               {isGitHubAppSelectionMode ? (
                 <div className="space-y-2">
                   <Label className="app-overline">Selected repository</Label>

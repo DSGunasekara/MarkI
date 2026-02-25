@@ -30,6 +30,10 @@ type CandidateSubmissionLogsQuery = {
   runId?: string
 }
 
+type CandidateAssignmentParams = {
+  joinCode: string
+}
+
 const toFirstHeaderValue = (value?: string): string | null => {
   if (!value) {
     return null
@@ -134,6 +138,34 @@ export const candidateController = {
       },
       201
     )
+  },
+
+  getAssignmentByJoinCode: async (c: CandidateContext, params: CandidateAssignmentParams) => {
+    const user = c.get('user')
+
+    if (!user) {
+      return c.json(
+        {
+          message: 'Authentication required.'
+        },
+        401
+      )
+    }
+
+    const assignment = await candidateService.getAssignmentByJoinCode(params.joinCode)
+
+    if (!assignment) {
+      return c.json(
+        {
+          message: 'Assignment not found.'
+        },
+        404
+      )
+    }
+
+    return c.json({
+      data: assignment
+    })
   },
 
   overview: async (c: CandidateContext, query: CandidateOverviewQuery) => {
