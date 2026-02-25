@@ -99,12 +99,12 @@ export function CandidateSubmissionLogs({ submissionId }: { submissionId: string
       </Card>
 
       <Dialog open={!!activeRunId} onOpenChange={(open) => !open && setActiveRunId(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>Build Logs</DialogTitle>
             <DialogDescription>Showing logs for the selected pipeline run.</DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-hidden min-h-[50vh]">
+          <div className="flex-1 flex flex-col min-h-[50vh] overflow-hidden">
             {activeRunId && (
               <CandidateSubmissionLogStream 
                 submissionId={submissionId} 
