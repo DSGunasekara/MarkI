@@ -39,7 +39,12 @@ export function CandidateSubmitRepository() {
   const initialInstallationId = useMemo(() => {
     if (typeof window === "undefined") return ""
     const params = new URLSearchParams(window.location.search)
-    return params.get("installation_id") ?? ""
+    const paramId = params.get("installation_id")
+    if (paramId) {
+      localStorage.setItem("codr_github_installation_id", paramId)
+      return paramId
+    }
+    return localStorage.getItem("codr_github_installation_id") ?? ""
   }, [])
 
   useEffect(() => {

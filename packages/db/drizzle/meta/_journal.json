@@ -36,6 +36,13 @@
       "when": 1771676032996,
       "tag": "0004_legal_synch",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1771992174337,
+      "tag": "0005_perpetual_human_robot",
+      "breakpoints": true
     }
   ]
 }
