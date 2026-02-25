@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useLogStream } from "@/hooks/use-log-stream"
-import { candidateApi, toErrorMessage, type DashboardSubmissionStatus } from "@/lib/api"
+import { candidateApi, toErrorMessage, type PipelineRunStatus } from "@/lib/api"
 import { RadioIcon } from "lucide-react"
 
 export function CandidateSubmissionLogStream({
@@ -10,7 +10,7 @@ export function CandidateSubmissionLogStream({
 }: {
   submissionId: string
   runId: string
-  status: DashboardSubmissionStatus
+  status: PipelineRunStatus
 }) {
   const logEndRef = useRef<HTMLPreElement>(null)
   
@@ -18,7 +18,7 @@ export function CandidateSubmissionLogStream({
   const [isLoadingPipeline, setIsLoadingPipeline] = useState(false)
   const [staticLogs, setStaticLogs] = useState<Array<{ stage: string; level: string; message: string; createdAt: string }>>([])
   
-  const isPendingBuild = status === "building" || status === "pending"
+  const isPendingBuild = status === "queued" || status === "running"
 
   const logStream = useLogStream({
     basePath: "/api/candidate/submissions",
@@ -75,11 +75,11 @@ export function CandidateSubmissionLogStream({
         ) : null}
       </div>
 
-      <div className="flex-1 overflow-auto rounded-md border border-border bg-background/60 p-3 flex flex-col min-h-[50vh]">
+      <div className="flex-1 rounded-md border border-border bg-background/60 flex flex-col min-h-[50vh] overflow-hidden">
         {hasLogs ? (
           <pre
             ref={logEndRef}
-            className="flex-1 overflow-auto whitespace-pre-wrap text-xs text-foreground"
+            className="flex-1 overflow-auto whitespace-pre-wrap p-3 text-xs text-foreground"
           >
             {logsToDisplay
               .map(

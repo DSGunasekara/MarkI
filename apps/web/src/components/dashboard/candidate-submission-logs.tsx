@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { candidateApi, toErrorMessage, type DashboardSubmissionStatus } from "@/lib/api"
+import { candidateApi, toErrorMessage, type PipelineRunStatus } from "@/lib/api"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -9,16 +9,16 @@ import { CandidateSubmissionLogStream } from "./candidate-submission-log-stream"
 
 type SubmissionBadgeVariant = "default" | "secondary" | "destructive" | "outline"
 
-const statusBadgeVariantMap: Record<DashboardSubmissionStatus, SubmissionBadgeVariant> = {
-  pending: "secondary",
-  building: "outline",
+const statusBadgeVariantMap: Record<PipelineRunStatus, SubmissionBadgeVariant> = {
+  queued: "secondary",
+  running: "outline",
   deployed: "default",
   failed: "destructive"
 }
 
 export function CandidateSubmissionLogs({ submissionId }: { submissionId: string }) {
   const [activeRunId, setActiveRunId] = useState<string | null>(null)
-  const [activeRunStatus, setActiveRunStatus] = useState<DashboardSubmissionStatus | null>(null)
+  const [activeRunStatus, setActiveRunStatus] = useState<PipelineRunStatus | null>(null)
   
   const { data: pipelineView, isLoading, error } = useQuery({
     queryKey: ["candidate", "submission", submissionId, "logs"],
@@ -68,7 +68,7 @@ export function CandidateSubmissionLogs({ submissionId }: { submissionId: string
                         {run.commitSha ? run.commitSha.slice(0, 8) : "-"}
                       </td>
                       <td className="px-3 py-3">
-                        <Badge variant={statusBadgeVariantMap[run.status as DashboardSubmissionStatus] ?? "outline"}>
+                        <Badge variant={statusBadgeVariantMap[run.status as PipelineRunStatus] ?? "outline"}>
                           {run.status}
                         </Badge>
                       </td>
@@ -81,7 +81,7 @@ export function CandidateSubmissionLogs({ submissionId }: { submissionId: string
                           variant="outline"
                           onClick={() => {
                             setActiveRunId(run.id)
-                            setActiveRunStatus(run.status as DashboardSubmissionStatus)
+                            setActiveRunStatus(run.status as PipelineRunStatus)
                           }}
                         >
                           Check Logs
