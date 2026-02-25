@@ -163,53 +163,57 @@ const callOpenAi = async (input: {
 
   console.log(`[callOpenAi] Making request to OpenAI using model: ${getOpenAiModel()}`);
 
+  const requestBody = {
+    model: getOpenAiModel(),
+    temperature: 0.1,
+    messages: input.messages,
+    response_format: input.expectJsonSchema
+      ? {
+          type: 'json_schema',
+          json_schema: {
+            name: 'candidate_performance_report',
+            strict: true,
+            schema: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                projectOverview: { type: 'string' },
+                notableStructure: { type: 'string' },
+                engineeringStrengths: {
+                  type: 'array',
+                  items: { type: 'string' }
+                },
+                risksOrConcerns: {
+                  type: 'array',
+                  items: { type: 'string' }
+                },
+                suggestedInterviewQuestions: {
+                  type: 'array',
+                  items: { type: 'string' }
+                }
+              },
+              required: [
+                'projectOverview',
+                'notableStructure',
+                'engineeringStrengths',
+                'risksOrConcerns',
+                'suggestedInterviewQuestions'
+              ]
+            }
+          }
+        }
+      : undefined
+  }
+
+  console.log(`[callOpenAi] Request body:`, JSON.stringify(requestBody, null, 2));
+
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`
     },
-    body: JSON.stringify({
-      model: getOpenAiModel(),
-      temperature: 0.1,
-      messages: input.messages,
-      response_format: input.expectJsonSchema
-        ? {
-            type: 'json_schema',
-            json_schema: {
-              name: 'candidate_performance_report',
-              strict: true,
-              schema: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  projectOverview: { type: 'string' },
-                  notableStructure: { type: 'string' },
-                  engineeringStrengths: {
-                    type: 'array',
-                    items: { type: 'string' }
-                  },
-                  risksOrConcerns: {
-                    type: 'array',
-                    items: { type: 'string' }
-                  },
-                  suggestedInterviewQuestions: {
-                    type: 'array',
-                    items: { type: 'string' }
-                  }
-                },
-                required: [
-                  'projectOverview',
-                  'notableStructure',
-                  'engineeringStrengths',
-                  'risksOrConcerns',
-                  'suggestedInterviewQuestions'
-                ]
-              }
-            }
-          }
-        : undefined
-    })
+    body: JSON.stringify(requestBody)
   })
 
   const payloadText = await response.text()
