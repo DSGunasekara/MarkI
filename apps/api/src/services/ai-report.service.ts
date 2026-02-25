@@ -47,10 +47,12 @@ type AiMessage = {
   content: string
 }
 
-type ChatCompletionsResponse = {
-  choices?: Array<{
-    message?: {
-      content?: string | null
+type GenerateContentResponse = {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        text?: string
+      }>
     }
   }>
 }
@@ -101,8 +103,8 @@ const parseJsonSafe = (value: string): unknown => {
   }
 }
 
-const getOpenAiModel = (): string => {
-  return process.env.OPENAI_MODEL?.trim() || 'gpt-4.1-mini'
+const getGeminiModel = (): string => {
+  return process.env.GEMINI_MODEL?.trim() || 'gemini-1.5-flash'
 }
 
 const serializeContext = (context: RepositoryContext): string => {
@@ -151,74 +153,82 @@ const toPerformanceReport = (value: unknown): AiPerformanceReport | null => {
   }
 }
 
-const callOpenAi = async (input: {
+const callGemini = async (input: {
   messages: AiMessage[]
   expectJsonSchema: boolean
 }): Promise<string> => {
-  const apiKey = process.env.OPENAI_API_KEY?.trim()
+  const apiKey = process.env.GEMINI_API_KEY?.trim()
   if (!apiKey) {
-    throw new Error('OPENAI_API_KEY is not configured.')
+    console.error('[callGemini] GEMINI_API_KEY is not configured.')
+    throw new Error('GEMINI_API_KEY is not configured.')
   }
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  const model = getGeminiModel()
+  console.log(`[callGemini] Making request to Gemini using model: ${model}`);
+
+  const systemMessage = input.messages.find(m => m.role === 'system')?.content
+  const systemInstruction = systemMessage ? { parts: [{ text: systemMessage }] } : undefined
+
+  const contents = input.messages
+    .filter(m => m.role !== 'system')
+    .map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }]
+    }))
+
+  const requestBody: any = {
+    systemInstruction,
+    contents,
+    generationConfig: {
+      temperature: 0.1,
+    }
+  }
+
+  if (input.expectJsonSchema) {
+    requestBody.generationConfig.responseMimeType = 'application/json'
+    requestBody.generationConfig.responseSchema = {
+      type: 'OBJECT',
+      properties: {
+        projectOverview: { type: 'STRING' },
+        notableStructure: { type: 'STRING' },
+        engineeringStrengths: { type: 'ARRAY', items: { type: 'STRING' } },
+        risksOrConcerns: { type: 'ARRAY', items: { type: 'STRING' } },
+        suggestedInterviewQuestions: { type: 'ARRAY', items: { type: 'STRING' } }
+      },
+      required: [
+        'projectOverview',
+        'notableStructure',
+        'engineeringStrengths',
+        'risksOrConcerns',
+        'suggestedInterviewQuestions'
+      ]
+    }
+  }
+
+  console.log(`[callGemini] Request body:`, JSON.stringify(requestBody, null, 2));
+
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`
+      'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      model: getOpenAiModel(),
-      temperature: 0.1,
-      messages: input.messages,
-      response_format: input.expectJsonSchema
-        ? {
-            type: 'json_schema',
-            json_schema: {
-              name: 'candidate_performance_report',
-              strict: true,
-              schema: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  projectOverview: { type: 'string' },
-                  notableStructure: { type: 'string' },
-                  engineeringStrengths: {
-                    type: 'array',
-                    items: { type: 'string' }
-                  },
-                  risksOrConcerns: {
-                    type: 'array',
-                    items: { type: 'string' }
-                  },
-                  suggestedInterviewQuestions: {
-                    type: 'array',
-                    items: { type: 'string' }
-                  }
-                },
-                required: [
-                  'projectOverview',
-                  'notableStructure',
-                  'engineeringStrengths',
-                  'risksOrConcerns',
-                  'suggestedInterviewQuestions'
-                ]
-              }
-            }
-          }
-        : undefined
-    })
+    body: JSON.stringify(requestBody)
   })
 
   const payloadText = await response.text()
+  console.log(`[callGemini] Response status: ${response.status}`);
+  console.log(`[callGemini] Response payload: ${payloadText}`);
+
   if (!response.ok) {
-    throw new Error(`OpenAI API request failed: ${response.status} ${payloadText}`)
+    console.error(`[callGemini] Request failed: ${response.status} ${payloadText}`);
+    throw new Error(`Gemini API request failed: ${response.status} ${payloadText}`)
   }
 
-  const payload = parseJsonSafe(payloadText) as ChatCompletionsResponse | null
-  const content = payload?.choices?.[0]?.message?.content
+  const payload = parseJsonSafe(payloadText) as GenerateContentResponse | null
+  const content = payload?.candidates?.[0]?.content?.parts?.[0]?.text
 
   if (!content || content.trim().length === 0) {
-    throw new Error('OpenAI API returned an empty response.')
+    throw new Error('Gemini API returned an empty response.')
   }
 
   return content
@@ -254,46 +264,79 @@ const buildFallbackReport = (context: RepositoryContext): AiPerformanceReport =>
 const listSourceFiles = async (
   repositoryDirectory: string
 ): Promise<Array<{ path: string; excerpt: string }>> => {
-  const files: Array<{ path: string; excerpt: string }> = []
+  const discoveredPaths: string[] = []
+  const MAX_DISCOVERY = 1000
 
   const walk = async (directoryPath: string) => {
-    if (files.length >= MAX_SOURCE_FILES) {
-      return
-    }
+    if (discoveredPaths.length >= MAX_DISCOVERY) return
 
     const entries = await readdir(directoryPath, { withFileTypes: true })
 
     for (const entry of entries) {
-      if (files.length >= MAX_SOURCE_FILES) {
-        return
-      }
+      if (discoveredPaths.length >= MAX_DISCOVERY) return
 
       if (entry.isDirectory()) {
-        if (SKIP_DIRECTORIES.has(entry.name)) {
-          continue
-        }
-
+        if (SKIP_DIRECTORIES.has(entry.name)) continue
         await walk(path.join(directoryPath, entry.name))
         continue
       }
 
       const extension = path.extname(entry.name).toLowerCase()
-      if (!INCLUDE_EXTENSIONS.has(extension)) {
-        continue
-      }
+      if (!INCLUDE_EXTENSIONS.has(extension)) continue
 
       const absoluteFilePath = path.join(directoryPath, entry.name)
       const relativeFilePath = path.relative(repositoryDirectory, absoluteFilePath)
-      const rawFileContent = await readFile(absoluteFilePath, 'utf8')
-
-      files.push({
-        path: relativeFilePath,
-        excerpt: truncateText(normalizeText(rawFileContent), MAX_FILE_CHARS)
-      })
+      discoveredPaths.push(relativeFilePath)
     }
   }
 
   await walk(repositoryDirectory)
+
+  const groups: Record<string, string[]> = {}
+  for (const filePath of discoveredPaths) {
+    const parts = filePath.split(path.sep)
+    const topLevelDir = parts.length > 1 ? parts[0] : '[root]'
+    
+    if (!groups[topLevelDir]) {
+      groups[topLevelDir] = []
+    }
+    groups[topLevelDir].push(filePath)
+  }
+
+  const selectedPaths = new Set<string>()
+  const groupKeys = Object.keys(groups)
+  let changed = true
+
+  while (selectedPaths.size < MAX_SOURCE_FILES && changed) {
+    changed = false
+    for (const key of groupKeys) {
+      if (selectedPaths.size >= MAX_SOURCE_FILES) break
+      
+      const groupFiles = groups[key]
+      if (groupFiles.length > 0) {
+        const fileToSelect = groupFiles.shift()
+        if (fileToSelect) {
+          selectedPaths.add(fileToSelect)
+          changed = true
+        }
+      }
+    }
+  }
+
+  const files: Array<{ path: string; excerpt: string }> = []
+  for (const relativeFilePath of selectedPaths) {
+    try {
+      const absoluteFilePath = path.join(repositoryDirectory, relativeFilePath)
+      const rawFileContent = await readFile(absoluteFilePath, 'utf8')
+      files.push({
+        path: relativeFilePath,
+        excerpt: truncateText(normalizeText(rawFileContent), MAX_FILE_CHARS)
+      })
+    } catch {
+      // Ignore read errors
+    }
+  }
+
   return files
 }
 
@@ -367,14 +410,69 @@ const buildRepositoryContext = async (
 }
 
 const formatContextForPrompt = (context: RepositoryContext): string => {
-  const rawContext = JSON.stringify(context, null, 2)
-  return truncateText(rawContext, MAX_CONTEXT_CHARS)
+  let md = `# Repository Context\n\n`
+  
+  md += `## Submission Info\n`
+  md += `- Assignment: ${context.submission.assignmentTitle}\n`
+  md += `- URL: ${context.submission.repositoryUrl}\n`
+  if (context.submission.repositoryFullName) {
+    md += `- Full Name: ${context.submission.repositoryFullName}\n`
+  }
+  md += `\n`
+
+  if (context.packageJson) {
+    md += `## Package Information\n`
+    if (context.packageJson.name) {
+      md += `- Name: ${context.packageJson.name}\n`
+    }
+    
+    const scripts = Object.entries(context.packageJson.scripts)
+    if (scripts.length > 0) {
+      md += `- Scripts:\n`
+      for (const [key, value] of scripts) {
+        md += `  - ${key}: \`${value}\`\n`
+      }
+    }
+
+    if (context.packageJson.dependencies.length > 0) {
+      md += `- Dependencies: ${context.packageJson.dependencies.join(', ')}\n`
+    }
+    
+    if (context.packageJson.devDependencies.length > 0) {
+      md += `- Dev Dependencies: ${context.packageJson.devDependencies.join(', ')}\n`
+    }
+    md += `\n`
+  }
+
+  if (context.topLevelEntries.length > 0) {
+    md += `## Top Level Entries\n`
+    md += `${context.topLevelEntries.join(', ')}\n\n`
+  }
+
+  if (context.sourceFiles.length > 0) {
+    md += `## Source Files\n\n`
+    for (const file of context.sourceFiles) {
+      md += `### File: ${file.path}\n`
+      
+      let lang = ''
+      if (file.path.endsWith('.ts') || file.path.endsWith('.tsx')) lang = 'typescript'
+      else if (file.path.endsWith('.js') || file.path.endsWith('.jsx')) lang = 'javascript'
+      else if (file.path.endsWith('.json')) lang = 'json'
+      else if (file.path.endsWith('.css') || file.path.endsWith('.scss')) lang = 'css'
+      
+      md += `\`\`\`${lang}\n`
+      md += file.excerpt
+      md += `\n\`\`\`\n\n`
+    }
+  }
+
+  return truncateText(md.trim(), MAX_CONTEXT_CHARS)
 }
 
 const generateReportWithLlm = async (context: RepositoryContext): Promise<AiPerformanceReport> => {
   const promptContext = formatContextForPrompt(context)
 
-  const content = await callOpenAi({
+  const content = await callGemini({
     expectJsonSchema: true,
     messages: [
       {
@@ -418,7 +516,7 @@ const answerQuestionWithLlm = async (input: {
     .join('\n')
 
   const reportText = JSON.stringify(input.report, null, 2)
-  const content = await callOpenAi({
+  const content = await callGemini({
     expectJsonSchema: false,
     messages: [
       {
@@ -462,7 +560,7 @@ const getLatestReportForSubmission = async (submissionId: string) => {
 export const aiReportService = {
   generateReportForSubmission: async (input: GenerateReportInput) => {
     const context = await buildRepositoryContext(input.repositoryDirectory, input.submissionId)
-    const model = getOpenAiModel()
+    const model = getGeminiModel()
 
     const [reportRecord] = await db
       .insert(aiReports)
@@ -485,8 +583,11 @@ export const aiReportService = {
       let report: AiPerformanceReport
 
       try {
+        console.log(`[aiReportService] Generating report with LLM for submission: ${input.submissionId}`);
         report = await generateReportWithLlm(context)
-      } catch {
+        console.log(`[aiReportService] Successfully generated report with LLM!`);
+      } catch (error) {
+        console.error(`[aiReportService] LLM report generation failed, falling back to basic report. Error:`, error);
         report = buildFallbackReport(context)
       }
 
@@ -609,6 +710,7 @@ export const aiReportService = {
 
     let answer = ''
     try {
+      console.log(`[aiReportService] Answering employer question with LLM for submission: ${input.submissionId}`);
       answer = await answerQuestionWithLlm({
         question: input.question,
         context: parsedContext,
@@ -618,7 +720,9 @@ export const aiReportService = {
           message: message.message
         }))
       })
-    } catch {
+      console.log(`[aiReportService] Successfully answered question with LLM`);
+    } catch (error) {
+      console.error(`[aiReportService] Answering employer question failed. Error:`, error);
       answer =
         'Unable to run LLM reasoning at this moment. Review the report sections and repository evidence directly for this question.'
     }

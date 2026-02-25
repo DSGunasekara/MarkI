@@ -1,7 +1,7 @@
 # Initialization: Workspace, Database Schema, and Auth Middleware
 
 ## Scope Completed
-This initialization pass sets up the foundational backend architecture for the Hiring Engine:
+This initialization pass sets up the foundational backend architecture for the Codr AI:
 
 - Workspace expanded to support shared packages.
 - New `@hiring-engine/db` package created with Drizzle ORM + `drizzle-zod`.

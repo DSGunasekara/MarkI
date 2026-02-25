@@ -12,7 +12,9 @@ The frontend now provides a production-style employer workspace with:
   - Employer explorer: `/employer/submissions`
   - Candidate: `/candidate/submissions/new`
 - Dashboard container width constrained with `max-w-7xl`
-- UI styling mapped to theme tokens from `/Users/Dilain/.codex/worktrees/5eff/MarkI/apps/web/src/index.css` (`app-shell`, `app-panel`, `app-overline`)
+- UI styling mapped to a Vercel/Linear-inspired dark theme aesthetic using tokens from `/Users/Dilain/.codex/worktrees/5eff/MarkI/apps/web/src/index.css` (`app-shell`, `app-panel`, `app-overline`)
+- Data fetching refactored to use TanStack React Query for caching, automatic refetching, and clean loading/error states
+- Enhanced UX with loading skeletons for smooth perceived performance during data fetching
 
 ## Frontend Files
 - `/Users/Dilain/.codex/worktrees/5eff/MarkI/apps/web/src/App.tsx`
@@ -63,8 +65,9 @@ All requests include cookies (`credentials: include`).
 - Candidate and employer views include per-submission run logs with stage output.
 - Candidate submission page includes GitHub App install entrypoint for push-triggered automation.
 - Candidate submission uses installation-based repository picker instead of manual URL when app is configured.
-- Empty states and loading states for all data regions.
-- Refresh action to resync without page reload.
+- Empty states and loading skeletons for all data regions.
+- Action dialogs/modals used for inspecting run logs or AI reports without navigating away.
+- Data fetches leverage TanStack React Query to quickly refresh metrics and lists without full-page reloads.
 
 ## Required Environment Variables
 - `VITE_API_BASE_URL`

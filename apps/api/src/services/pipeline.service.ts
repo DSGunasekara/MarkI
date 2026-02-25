@@ -16,6 +16,7 @@ import path from 'node:path'
 
 import { aiReportService } from './ai-report.service.js'
 import { githubAppService } from './github-app.service.js'
+import { pipelineEvents } from './pipeline-events.js'
 
 type PipelineTrigger = 'submission' | 'push'
 type PipelineRunStatus = 'queued' | 'running' | 'deployed' | 'failed'
@@ -35,6 +36,7 @@ type BuildCommandContext = {
   command: string
   args: string[]
   logCommand?: string
+  signal?: AbortSignal
 }
 
 type TriggerPipelineInput = {
@@ -116,6 +118,7 @@ class PipelineExecutionError extends Error {
 const runQueue: string[] = []
 const queuedRunIdSet = new Set<string>()
 const queuedRunPreviewBaseUrl = new Map<string, string>()
+const activeRunControllers = new Map<string, AbortController>()
 let isRunWorkerActive = false
 
 const toLowerCaseFullName = (value: string): string => {
@@ -471,12 +474,28 @@ const appendBuildLog = async (
     return
   }
 
-  await db.insert(buildLogs).values({
+  const [inserted] = await db.insert(buildLogs).values({
     buildRunId: runId,
     stage,
     level,
     message: normalizedMessage
+  }).returning({
+    id: buildLogs.id,
+    createdAt: buildLogs.createdAt
   })
+
+  if (inserted) {
+    pipelineEvents.emitLog({
+      runId,
+      log: {
+        id: inserted.id,
+        stage,
+        level,
+        message: normalizedMessage,
+        createdAt: inserted.createdAt.toISOString()
+      }
+    })
+  }
 }
 
 const updateSubmissionStatus = async (
@@ -511,7 +530,8 @@ const runCommand = async (input: BuildCommandContext): Promise<{ stdout: string;
     const childProcess = spawn(input.command, input.args, {
       cwd: input.cwd,
       env: process.env,
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['ignore', 'pipe', 'pipe'],
+      signal: input.signal
     })
 
     const stdoutChunks: string[] = []
@@ -533,6 +553,10 @@ const runCommand = async (input: BuildCommandContext): Promise<{ stdout: string;
 
     childProcess.on('error', (error) => {
       clearTimeout(timeoutId)
+      if (input.signal?.aborted) {
+        reject(new PipelineExecutionError(input.stage, 'Command aborted by user.'))
+        return
+      }
       reject(new PipelineExecutionError(input.stage, error.message))
     })
 
@@ -616,6 +640,8 @@ const runPipeline = async (runId: string): Promise<void> => {
   let repositoryDirectory: string | null = null
   let resolvedCommitSha = runRecord.commitSha ?? null
   let didAttemptAiReport = false
+  const runAbortController = new AbortController()
+  activeRunControllers.set(runId, runAbortController)
 
   await db
     .update(buildRuns)
@@ -625,6 +651,8 @@ const runPipeline = async (runId: string): Promise<void> => {
       updatedAt: new Date()
     })
     .where(eq(buildRuns.id, runId))
+
+  pipelineEvents.emitRunStatus({ runId, status: 'running' })
 
   await updateSubmissionStatus(runRecord.submissionId, 'building', {
     latestCommitSha: runRecord.commitSha ?? null,
@@ -661,7 +689,8 @@ const runPipeline = async (runId: string): Promise<void> => {
       cwd: tempRootPath,
       command: 'git',
       args: cloneArgs,
-      logCommand: `git clone --depth 1${cloneTargetBranch ? ` --branch ${cloneTargetBranch}` : ''} ${cloneSourceLabel} ${repositoryDirectory}`
+      logCommand: `git clone --depth 1${cloneTargetBranch ? ` --branch ${cloneTargetBranch}` : ''} ${cloneSourceLabel} ${repositoryDirectory}`,
+      signal: runAbortController.signal
     })
 
     const revisionResult = await runCommand({
@@ -669,7 +698,8 @@ const runPipeline = async (runId: string): Promise<void> => {
       runId,
       cwd: repositoryDirectory,
       command: 'git',
-      args: ['rev-parse', 'HEAD']
+      args: ['rev-parse', 'HEAD'],
+      signal: runAbortController.signal
     })
 
     const normalizedCommitSha = revisionResult.stdout.trim()
@@ -898,6 +928,8 @@ const runPipeline = async (runId: string): Promise<void> => {
       })
       .where(eq(buildRuns.id, runId))
 
+    pipelineEvents.emitRunStatus({ runId, status: 'deployed' })
+
     await updateSubmissionStatus(runRecord.submissionId, 'deployed', {
       latestCommitSha: resolvedCommitSha,
       deployedUrl: deploymentUrl,
@@ -954,6 +986,8 @@ const runPipeline = async (runId: string): Promise<void> => {
       })
       .where(eq(buildRuns.id, runId))
 
+    pipelineEvents.emitRunStatus({ runId, status: 'failed' })
+
     await updateSubmissionStatus(runRecord.submissionId, 'failed', {
       latestCommitSha: resolvedCommitSha,
       deployedUrl: null,
@@ -963,7 +997,38 @@ const runPipeline = async (runId: string): Promise<void> => {
     if (tempRootPath) {
       await rm(tempRootPath, { recursive: true, force: true })
     }
+    activeRunControllers.delete(runId)
   }
+}
+
+const cancelPipelineRun = async (runId: string): Promise<boolean> => {
+  if (queuedRunIdSet.has(runId)) {
+    queuedRunIdSet.delete(runId)
+    const index = runQueue.indexOf(runId)
+    if (index !== -1) runQueue.splice(index, 1)
+
+    // Mark failed instantly
+    await db
+      .update(buildRuns)
+      .set({
+        status: 'failed',
+        finishedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(buildRuns.id, runId))
+      
+    await appendBuildLog(runId, 'system', 'warn', 'Pipeline canceled while queued.')
+    pipelineEvents.emitRunStatus({ runId, status: 'failed' })
+    return true
+  }
+
+  const controller = activeRunControllers.get(runId)
+  if (controller) {
+    controller.abort('Canceled by user')
+    return true
+  }
+
+  return false
 }
 
 const processRunQueue = async (): Promise<void> => {
@@ -1253,5 +1318,7 @@ export const pipelineService = {
       submission: submissionRecord,
       ...pipelineView
     }
-  }
+  },
+
+  cancelPipelineRun
 }

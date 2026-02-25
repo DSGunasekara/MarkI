@@ -3,12 +3,20 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 
 import { dashboardController } from '../controllers/dashboard.controller.js'
+import { streamController } from '../controllers/stream.controller.js'
 import { requireAuth, requireRole } from '../middleware/auth.middleware.js'
 import type { AppBindings } from '../types/hono.js'
 
 const dashboardOverviewQuerySchema = z.object({
   assignmentsLimit: z.coerce.number().int().min(1).max(25).optional(),
   submissionsLimit: z.coerce.number().int().min(1).max(25).optional()
+})
+
+const dashboardAssignmentsQuerySchema = z.object({
+  search: z.string().trim().min(1).max(120).optional(),
+  sort: z.enum(['newest', 'oldest']).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  offset: z.coerce.number().int().min(0).max(5_000).optional()
 })
 
 const dashboardSubmissionsQuerySchema = z.object({
@@ -50,6 +58,17 @@ dashboardRoutes.get(
 )
 
 dashboardRoutes.get(
+  '/assignments',
+  requireAuth,
+  requireRole(['employer']),
+  zValidator('query', dashboardAssignmentsQuerySchema),
+  async (c) => {
+    const query = c.req.valid('query')
+    return dashboardController.assignments(c, query)
+  }
+)
+
+dashboardRoutes.get(
   '/submissions',
   requireAuth,
   requireRole(['employer']),
@@ -70,6 +89,19 @@ dashboardRoutes.get(
     const params = c.req.valid('param')
     const query = c.req.valid('query')
     return dashboardController.submissionLogs(c, params, query)
+  }
+)
+
+dashboardRoutes.get(
+  '/submissions/:submissionId/logs/stream',
+  requireAuth,
+  requireRole(['employer']),
+  zValidator('param', dashboardSubmissionParamsSchema),
+  zValidator('query', dashboardSubmissionLogsQuerySchema),
+  async (c) => {
+    const params = c.req.valid('param')
+    const query = c.req.valid('query')
+    return streamController.employerLogStream(c, params, query)
   }
 )
 

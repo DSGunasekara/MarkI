@@ -1,7 +1,7 @@
 # Dokploy Deployment
 
 ## Goal
-Deploy the full Hiring Engine stack with Docker Compose on Dokploy:
+Deploy the full Codr AI stack with Docker Compose on Dokploy:
 - PostgreSQL
 - Hono API
 - Vite/React web frontend (served by Nginx)
@@ -47,8 +47,8 @@ Minimum for production:
 - `BETTER_AUTH_TRUSTED_ORIGINS`
 
 Optional but recommended:
-- `OPENAI_API_KEY`
-- `OPENAI_MODEL`
+- `GEMINI_API_KEY` (or fallback `OPENAI_API_KEY`)
+- `GEMINI_MODEL` (default: `gemini-3-flash-preview`)
 - `GITHUB_APP_ID`
 - `GITHUB_APP_SLUG`
 - `GITHUB_APP_PRIVATE_KEY_BASE64` (preferred)

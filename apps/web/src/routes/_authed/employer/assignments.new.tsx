@@ -1,6 +1,9 @@
-import { useState, type FormEvent } from "react"
+import { createFileRoute } from "@tanstack/react-router"
 
-import { WorkspaceShell } from "@/components/shared/workspace-shell"
+import { useState, type FormEvent } from "react"
+import { useNavigate } from "@tanstack/react-router"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -13,28 +16,41 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { assignmentApi, toErrorMessage, type SessionUser } from "@/lib/api"
+import { assignmentApi, toErrorMessage } from "@/lib/api"
+import { FormPageSkeleton } from "@/components/shared/page-skeletons"
 
-type EmployerCreateAssignmentProps = {
-  user: SessionUser
-  onSignOut: () => Promise<void>
-  onBackToDashboard: () => void
-  onOpenSubmissionsExplorer: () => void
-}
+export const Route = createFileRoute("/_authed/employer/assignments/new")({
+  pendingComponent: () => <FormPageSkeleton fieldCount={2} />,
+  component: EmployerCreateAssignmentPage,
+})
 
-export function EmployerCreateAssignment({
-  user,
-  onSignOut,
-  onBackToDashboard,
-  onOpenSubmissionsExplorer
-}: EmployerCreateAssignmentProps) {
+function EmployerCreateAssignmentPage() {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+
   const [title, setTitle] = useState("")
   const [instructions, setInstructions] = useState("")
-  const [isCreating, setIsCreating] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-  const handleCreateAssignment = async (event: FormEvent<HTMLFormElement>) => {
+  const createMutation = useMutation({
+    mutationFn: (input: { title: string; instructions: string }) =>
+      assignmentApi.create(input),
+    onSuccess: (assignment) => {
+      setTitle("")
+      setInstructions("")
+      setSuccessMessage(`Assignment created. Join code: ${assignment.joinCode}`)
+
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+
+      navigate({ to: "/employer" })
+    },
+    onError: (error: unknown) => {
+      setErrorMessage(toErrorMessage(error))
+    }
+  })
+
+  const handleCreateAssignment = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
     const normalizedTitle = title.trim()
@@ -52,55 +68,21 @@ export function EmployerCreateAssignment({
 
     setErrorMessage(null)
     setSuccessMessage(null)
-    setIsCreating(true)
 
-    try {
-      const assignment = await assignmentApi.create({
-        title: normalizedTitle,
-        instructions: normalizedInstructions
-      })
-
-      setTitle("")
-      setInstructions("")
-      setSuccessMessage(`Assignment created. Join code: ${assignment.joinCode}`)
-    } catch (error: unknown) {
-      setErrorMessage(toErrorMessage(error))
-    } finally {
-      setIsCreating(false)
-    }
+    createMutation.mutate({
+      title: normalizedTitle,
+      instructions: normalizedInstructions
+    })
   }
 
   return (
-    <WorkspaceShell
-      workspaceLabel="Employer Workspace"
-      title="Create Assignment"
-      description="Define scope and requirements so candidate evaluations stay consistent."
-      userEmail={user.email}
-      navItems={[
-        {
-          key: "dashboard",
-          label: "Dashboard",
-          isActive: false,
-          onClick: onBackToDashboard
-        },
-        {
-          key: "create-assignment",
-          label: "Create Assignment",
-          isActive: true,
-          onClick: () => {
-            // no-op: already on create assignment
-          }
-        },
-        {
-          key: "submissions",
-          label: "Submissions",
-          isActive: false,
-          onClick: onOpenSubmissionsExplorer
-        }
-      ]}
-      onSignOut={onSignOut}
-      maxWidthClassName="max-w-4xl"
-    >
+    <div className="mx-auto w-full max-w-4xl space-y-4 px-4 py-4 md:px-6 lg:px-8">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Create Assignment</h1>
+          <p className="text-sm text-muted-foreground">Define scope and requirements so candidate evaluations stay consistent.</p>
+        </div>
+      </div>
       <section className="space-y-4">
         <Card className="app-panel">
           <CardHeader>
@@ -144,10 +126,10 @@ export function EmployerCreateAssignment({
               {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
 
               <div className="flex items-center gap-2">
-                <Button type="submit" className="h-10" disabled={isCreating}>
-                  {isCreating ? "Creating assignment..." : "Create assignment"}
+                <Button type="submit" className="h-10" disabled={createMutation.isPending}>
+                  {createMutation.isPending ? "Creating assignment..." : "Create assignment"}
                 </Button>
-                <Button type="button" variant="outline" onClick={onBackToDashboard}>
+                <Button type="button" variant="outline" onClick={() => void navigate({ to: "/employer" })}>
                   Cancel
                 </Button>
               </div>
@@ -160,6 +142,6 @@ export function EmployerCreateAssignment({
           </CardFooter>
         </Card>
       </section>
-    </WorkspaceShell>
+    </div>
   )
 }

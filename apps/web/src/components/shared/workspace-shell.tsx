@@ -1,87 +1,65 @@
 import type { ReactNode } from "react"
+import {  useLocation } from "@tanstack/react-router"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { AppSidebar } from "@/components/app-sidebar"
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar"
+import { useSignOut } from "@/hooks/use-sign-out"
+import type { SessionState } from "@/lib/api"
 
-type WorkspaceNavItem = {
+export type WorkspaceNavItem = {
   key: string
   label: string
-  isActive: boolean
-  onClick: () => void
+  href: string
+  icon?: ReactNode
 }
 
 type WorkspaceShellProps = {
   workspaceLabel: string
-  title: string
-  description: string
-  userEmail: string
+  session: SessionState
   navItems: WorkspaceNavItem[]
-  onSignOut: () => Promise<void>
+  headerSlot?: ReactNode
   children: ReactNode
-  headerActions?: ReactNode
-  maxWidthClassName?: string
 }
 
 export function WorkspaceShell({
   workspaceLabel,
-  title,
-  description,
-  userEmail,
+  session,
   navItems,
-  onSignOut,
+  headerSlot,
   children,
-  headerActions,
-  maxWidthClassName = "max-w-7xl"
 }: WorkspaceShellProps) {
+  const location = useLocation()
+  const signOut = useSignOut()
+
+  const resolvedNavItems = navItems.map((item) => ({
+    key: item.key,
+    label: item.label,
+    href: item.href,
+    isActive: location.pathname === item.href,
+    icon: item.icon,
+  }))
+
   return (
-    <div className="min-h-screen md:grid md:grid-cols-[15rem_1fr]">
-      <aside className="border-b border-border bg-card/60 md:border-r md:border-b-0">
-        <div className="flex h-full flex-col gap-4 p-4 md:sticky md:top-0 md:h-screen">
-          <div>
-            <p className="app-overline">Hiring Engine</p>
-            <p className="text-sm font-medium">{workspaceLabel}</p>
-          </div>
+    <SidebarProvider>
+      <AppSidebar
+        workspaceLabel={workspaceLabel}
+        navItems={resolvedNavItems}
+        user={{ name: session.user.name, email: session.user.email, avatar: "" }}
+        onSignOut={signOut}
+      />
 
-          <nav className="flex flex-wrap gap-2 md:flex-col">
-            {navItems.map((navItem) => (
-              <Button
-                key={navItem.key}
-                type="button"
-                size="sm"
-                variant={navItem.isActive ? "secondary" : "ghost"}
-                className={cn("justify-start", navItem.isActive ? "font-medium" : "")}
-                onClick={navItem.onClick}
-              >
-                {navItem.label}
-              </Button>
-            ))}
-          </nav>
+      <SidebarInset>
+        <header className="flex h-12 items-center gap-2 border-b px-4 md:hidden">
+          <SidebarTrigger />
+        </header>
 
-          <div className="mt-auto flex flex-wrap items-center gap-2 md:flex-col md:items-stretch">
-            <Badge variant="outline" className="justify-center md:justify-start">
-              {userEmail}
-            </Badge>
-            <Button variant="outline" size="sm" onClick={() => void onSignOut()}>
-              Sign out
-            </Button>
-          </div>
-        </div>
-      </aside>
-
-      <main className="min-w-0">
-        <div className={cn("mx-auto w-full space-y-4 px-4 py-4 md:px-6 lg:px-8", maxWidthClassName)}>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h1 className="text-xl font-semibold">{title}</h1>
-              <p className="text-sm text-muted-foreground">{description}</p>
-            </div>
-            {headerActions ? <div className="flex items-center gap-2">{headerActions}</div> : null}
-          </div>
-
-          {children}
-        </div>
-      </main>
-    </div>
+        {headerSlot}
+        {children}
+      </SidebarInset>
+    </SidebarProvider>
   )
 }

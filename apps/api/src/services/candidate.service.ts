@@ -1,5 +1,5 @@
-import { assignments, db, submissions } from '@hiring-engine/db'
-import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
+import { assignments, buildRuns, db, submissions, user } from '@hiring-engine/db'
+import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 
 import { githubAppService } from './github-app.service.js'
 import { pipelineService } from './pipeline.service.js'
@@ -24,16 +24,10 @@ const getLatestInstallationIdForCandidate = async (
 ): Promise<string | null> => {
   const [record] = await db
     .select({
-      githubInstallationId: submissions.githubInstallationId
+      githubInstallationId: user.githubInstallationId
     })
-    .from(submissions)
-    .where(
-      and(
-        eq(submissions.candidateId, candidateId),
-        isNotNull(submissions.githubInstallationId)
-      )
-    )
-    .orderBy(desc(submissions.updatedAt), desc(submissions.createdAt))
+    .from(user)
+    .where(eq(user.id, candidateId))
     .limit(1)
 
   return record?.githubInstallationId ?? null
@@ -85,7 +79,7 @@ export const candidateService = {
 
       if (integrationMetadata.isConfigured && !integrationMetadata.isInstalled) {
         throw new Error(
-          'Repository is not connected to the Hiring Engine GitHub App. Install the app on this repository before submitting.'
+          'Repository is not connected to the Codr AI GitHub App. Install the app on this repository before submitting.'
         )
       }
 
@@ -101,6 +95,10 @@ export const candidateService = {
       githubInstallationId = integrationMetadata.githubInstallationId
     } else {
       throw new Error('Repository details are required.')
+    }
+
+    if (githubInstallationId) {
+      await db.update(user).set({ githubInstallationId }).where(eq(user.id, input.candidateId))
     }
 
     const [assignmentRecord] = await db
@@ -248,6 +246,11 @@ export const candidateService = {
 
   getGitHubRepositories: async (candidateId: string, installationId?: string) => {
     const normalizedInstallationId = installationId?.trim()
+
+    if (normalizedInstallationId && normalizedInstallationId.length > 0) {
+      await db.update(user).set({ githubInstallationId: normalizedInstallationId }).where(eq(user.id, candidateId))
+    }
+
     const resolvedInstallationId =
       normalizedInstallationId && normalizedInstallationId.length > 0
         ? normalizedInstallationId
@@ -261,5 +264,43 @@ export const candidateService = {
     }
 
     return githubAppService.listInstallationRepositories(resolvedInstallationId)
+  },
+
+  deleteSubmission: async (candidateId: string, submissionId: string): Promise<boolean> => {
+    const [submissionRecord] = await db
+      .select({ id: submissions.id })
+      .from(submissions)
+      .where(and(eq(submissions.id, submissionId), eq(submissions.candidateId, candidateId)))
+      .limit(1)
+
+    if (!submissionRecord) {
+      return false
+    }
+
+    const activeRuns = await db
+      .select({ id: buildRuns.id })
+      .from(buildRuns)
+      .where(and(eq(buildRuns.submissionId, submissionId), inArray(buildRuns.status, ['queued', 'running'])))
+
+    for (const run of activeRuns) {
+      await pipelineService.cancelPipelineRun(run.id)
+    }
+
+    await db.delete(submissions).where(eq(submissions.id, submissionId))
+    return true
+  },
+
+  cancelBuildRun: async (candidateId: string, submissionId: string, runId: string): Promise<boolean> => {
+    const [submissionRecord] = await db
+      .select({ id: submissions.id })
+      .from(submissions)
+      .where(and(eq(submissions.id, submissionId), eq(submissions.candidateId, candidateId)))
+      .limit(1)
+
+    if (!submissionRecord) {
+      return false
+    }
+
+    return pipelineService.cancelPipelineRun(runId)
   }
 }

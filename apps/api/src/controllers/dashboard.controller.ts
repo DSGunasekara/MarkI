@@ -21,6 +21,13 @@ type DashboardSubmissionsQuery = {
   offset?: number
 }
 
+type DashboardAssignmentsQuery = {
+  search?: string
+  sort?: 'newest' | 'oldest'
+  limit?: number
+  offset?: number
+}
+
 type DashboardSubmissionLogsParams = {
   submissionId: string
 }
@@ -57,6 +64,30 @@ export const dashboardController = {
 
     return c.json({
       data: dashboardData
+    })
+  },
+
+  assignments: async (c: DashboardContext, query: DashboardAssignmentsQuery) => {
+    const user = c.get('user')
+
+    if (!user) {
+      return c.json(
+        {
+          message: 'Authentication required.'
+        },
+        401
+      )
+    }
+
+    const assignmentsData = await dashboardService.getEmployerAssignments(user.id, {
+      search: query.search,
+      sort: query.sort,
+      limit: query.limit,
+      offset: query.offset
+    })
+
+    return c.json({
+      data: assignmentsData
     })
   },
 

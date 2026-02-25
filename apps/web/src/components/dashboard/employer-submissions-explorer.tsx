@@ -1,7 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { RefreshCwIcon, SparklesIcon } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  RadioIcon,
+  RefreshCwIcon,
+  SparklesIcon,
+  FileTextIcon,
+  ArrowRightIcon,
+  BrainCircuitIcon,
+  CodeIcon,
+  AlertTriangleIcon,
+  MessageSquareIcon,
+  CheckCircle2Icon
+} from "lucide-react"
 
-import { WorkspaceShell } from "@/components/shared/workspace-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -12,6 +23,13 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -30,15 +48,11 @@ import {
   type DashboardSubmissionStatus,
   type EmployerSubmissionAiReportView,
   type EmployerSubmissionExplorer,
-  type EmployerSubmissionsSort,
-  type SessionUser
+  type EmployerSubmissionsSort
 } from "@/lib/api"
+import { useLogStream } from "@/hooks/use-log-stream"
 
 type EmployerSubmissionsExplorerProps = {
-  user: SessionUser
-  onSignOut: () => Promise<void>
-  onBackToDashboard: () => void
-  onOpenCreateAssignment: () => void
   initialAssignmentId?: string | null
 }
 
@@ -48,8 +62,6 @@ type ExplorerFilterDraft = {
   search: string
   sort: EmployerSubmissionsSort
 }
-
-type LoadMode = "initial" | "refresh"
 
 type SubmissionBadgeVariant = "default" | "secondary" | "destructive" | "outline"
 
@@ -88,26 +100,22 @@ const toRepositoryHref = (repositoryUrl: string): string => {
 }
 
 export function EmployerSubmissionsExplorer({
-  user,
-  onSignOut,
-  onBackToDashboard,
-  onOpenCreateAssignment,
   initialAssignmentId
 }: EmployerSubmissionsExplorerProps) {
+  const queryClient = useQueryClient()
+
   const [draftFilters, setDraftFilters] = useState<ExplorerFilterDraft>(DEFAULT_FILTERS)
   const [activeFilters, setActiveFilters] = useState<ExplorerFilterDraft>(DEFAULT_FILTERS)
   const [offset, setOffset] = useState(0)
 
-  const [explorerData, setExplorerData] = useState<EmployerSubmissionExplorer | null>(null)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isRefreshing, setIsRefreshing] = useState(false)
   const [activeLogsSubmissionId, setActiveLogsSubmissionId] = useState<string | null>(null)
+  const [activeLogsSubmissionStatus, setActiveLogsSubmissionStatus] = useState<DashboardSubmissionStatus | null>(null)
   const [pipelineErrorMessage, setPipelineErrorMessage] = useState<string | null>(null)
   const [isLoadingPipeline, setIsLoadingPipeline] = useState(false)
   const [pipelineView, setPipelineView] = useState<Awaited<
     ReturnType<typeof dashboardApi.getSubmissionLogs>
   > | null>(null)
+  const [activeStreamRunId, setActiveStreamRunId] = useState<string | null>(null)
   const [activeAiSubmissionId, setActiveAiSubmissionId] = useState<string | null>(null)
   const [aiReportErrorMessage, setAiReportErrorMessage] = useState<string | null>(null)
   const [isLoadingAiReport, setIsLoadingAiReport] = useState(false)
@@ -115,17 +123,52 @@ export function EmployerSubmissionsExplorer({
   const [aiQuestionDraft, setAiQuestionDraft] = useState("")
   const [aiReportView, setAiReportView] = useState<EmployerSubmissionAiReportView | null>(null)
 
-  const fetchExplorerData = useCallback(async (mode: LoadMode) => {
-    if (mode === "initial") {
-      setIsLoading(true)
-    } else {
-      setIsRefreshing(true)
+  const logEndRef = useRef<HTMLPreElement>(null)
+
+  const shouldStream = activeLogsSubmissionId !== null &&
+    (activeLogsSubmissionStatus === "building" || activeLogsSubmissionStatus === "pending")
+
+  const logStream = useLogStream({
+    basePath: "/api/dashboard/submissions",
+    submissionId: activeLogsSubmissionId,
+    runId: activeStreamRunId,
+    enabled: shouldStream
+  })
+
+  // Auto-scroll when streaming new logs
+  useEffect(() => {
+    if (logStream.isStreaming && logEndRef.current) {
+      logEndRef.current.scrollTop = logEndRef.current.scrollHeight
     }
+  }, [logStream.logs.length, logStream.isStreaming])
 
-    setErrorMessage(null)
+  // When stream finishes, refresh submissions to update statuses
+  useEffect(() => {
+    if (logStream.runStatus === "deployed" || logStream.runStatus === "failed") {
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "submissions"] })
+    }
+  }, [logStream.runStatus, queryClient])
 
-    try {
-      const response = await dashboardApi.getSubmissions({
+  const queryParams = useMemo(
+    () => ({
+      assignmentId: activeFilters.assignmentId,
+      status: activeFilters.status,
+      search: activeFilters.search,
+      sort: activeFilters.sort,
+      offset
+    }),
+    [activeFilters, offset]
+  )
+
+  const {
+    data: explorerData,
+    error,
+    isLoading,
+    isFetching
+  } = useQuery({
+    queryKey: ["dashboard", "submissions", queryParams],
+    queryFn: () =>
+      dashboardApi.getSubmissions({
         assignmentId: activeFilters.assignmentId === "all" ? undefined : activeFilters.assignmentId,
         status: activeFilters.status === "all" ? undefined : activeFilters.status,
         search: activeFilters.search,
@@ -133,28 +176,9 @@ export function EmployerSubmissionsExplorer({
         limit: DEFAULT_LIMIT,
         offset
       })
+  })
 
-      setExplorerData(response)
-    } catch (error: unknown) {
-      setErrorMessage(toErrorMessage(error))
-    } finally {
-      if (mode === "initial") {
-        setIsLoading(false)
-      } else {
-        setIsRefreshing(false)
-      }
-    }
-  }, [activeFilters, offset])
-
-  useEffect(() => {
-    const timerId = window.setTimeout(() => {
-      void fetchExplorerData("initial")
-    }, 0)
-
-    return () => {
-      window.clearTimeout(timerId)
-    }
-  }, [fetchExplorerData])
+  const errorMessage = error ? toErrorMessage(error) : null
 
   useEffect(() => {
     const nextAssignmentId = initialAssignmentId ?? "all"
@@ -229,11 +253,28 @@ export function EmployerSubmissionsExplorer({
     setActiveFilters(DEFAULT_FILTERS)
   }
 
+  const handleRefresh = () => {
+    void queryClient.invalidateQueries({
+      queryKey: ["dashboard", "submissions"]
+    })
+  }
+
   const loadSubmissionLogs = useCallback(
-    async (submissionId: string, runId?: string) => {
+    async (submissionId: string, status: DashboardSubmissionStatus, runId?: string) => {
+      setActiveLogsSubmissionId(submissionId)
+      setActiveLogsSubmissionStatus(status)
+      setActiveStreamRunId(runId ?? null)
+
+      if (status === "building" || status === "pending") {
+        logStream.resetStream()
+        setPipelineView(null)
+        setPipelineErrorMessage(null)
+        setIsLoadingPipeline(false)
+        return
+      }
+
       setIsLoadingPipeline(true)
       setPipelineErrorMessage(null)
-      setActiveLogsSubmissionId(submissionId)
 
       try {
         const response = await dashboardApi.getSubmissionLogs({
@@ -247,7 +288,7 @@ export function EmployerSubmissionsExplorer({
         setIsLoadingPipeline(false)
       }
     },
-    []
+    [logStream]
   )
 
   const loadSubmissionAiReport = useCallback(async (submissionId: string) => {
@@ -291,35 +332,13 @@ export function EmployerSubmissionsExplorer({
   }, [activeAiSubmissionId, aiQuestionDraft])
 
   return (
-    <WorkspaceShell
-      workspaceLabel="Employer Workspace"
-      title="Submissions Explorer"
-      description="Filter and inspect submissions grouped by assignment."
-      userEmail={user.email}
-      navItems={[
-        {
-          key: "dashboard",
-          label: "Dashboard",
-          isActive: false,
-          onClick: onBackToDashboard
-        },
-        {
-          key: "create-assignment",
-          label: "Create Assignment",
-          isActive: false,
-          onClick: onOpenCreateAssignment
-        },
-        {
-          key: "submissions",
-          label: "Submissions",
-          isActive: true,
-          onClick: () => {
-            // no-op: already on submissions explorer
-          }
-        }
-      ]}
-      onSignOut={onSignOut}
-    >
+    <div className="mx-auto w-full max-w-7xl space-y-4 px-4 py-4 md:px-6 lg:px-8">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Submissions Explorer</h1>
+          <p className="text-sm text-muted-foreground">Filter and inspect submissions grouped by assignment.</p>
+        </div>
+      </div>
       <section className="space-y-4">
         <Card className="app-panel">
           <CardHeader>
@@ -443,12 +462,10 @@ export function EmployerSubmissionsExplorer({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  void fetchExplorerData("refresh")
-                }}
-                disabled={isRefreshing}
+                onClick={handleRefresh}
+                disabled={isFetching}
               >
-                <RefreshCwIcon className={isRefreshing ? "animate-spin" : ""} />
+                <RefreshCwIcon className={isFetching ? "animate-spin" : ""} />
                 Refresh
               </Button>
             </div>
@@ -461,7 +478,7 @@ export function EmployerSubmissionsExplorer({
           </Card>
         ) : null}
 
-        {isLoading && !explorerData ? (
+        {isLoading ? (
           <Card className="app-panel">
             <CardContent className="py-6 text-sm text-muted-foreground">Loading submissions...</CardContent>
           </Card>
@@ -535,7 +552,7 @@ export function EmployerSubmissionsExplorer({
                                 size="sm"
                                 variant="outline"
                                 onClick={() => {
-                                  void loadSubmissionLogs(submission.id)
+                                  void loadSubmissionLogs(submission.id, submission.status)
                                 }}
                               >
                                 View logs
@@ -599,21 +616,67 @@ export function EmployerSubmissionsExplorer({
             </div>
           </CardContent>
         </Card>
+      </section>
 
-        {activeLogsSubmissionId ? (
-          <Card className="app-panel">
-            <CardHeader>
-              <CardTitle>Pipeline Logs</CardTitle>
-              <CardDescription>
-                Review build and deployment output for the selected submission.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
+      <Dialog open={!!activeLogsSubmissionId} onOpenChange={(open) => !open && setActiveLogsSubmissionId(null)}>
+        <DialogContent className="sm:max-w-[95vw] lg:max-w-6xl w-[95vw] h-[95vh] sm:h-[90vh] flex flex-col overflow-hidden">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>Pipeline Logs</DialogTitle>
+                <DialogDescription>
+                  Review build and deployment output for the selected submission.
+                </DialogDescription>
+              </div>
+              {logStream.isStreaming ? (
+                <div className="flex items-center gap-2 rounded-full border border-border px-3 py-1">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                  </span>
+                  <span className="text-xs font-medium text-emerald-500">Streaming live</span>
+                </div>
+              ) : null}
+            </div>
+          </DialogHeader>
+          <div className="flex-1 flex flex-col min-h-0 overflow-y-auto space-y-3 px-1 pb-4">
               {pipelineErrorMessage ? (
                 <p className="text-sm text-destructive">{pipelineErrorMessage}</p>
               ) : null}
 
-              {isLoadingPipeline ? (
+              {logStream.error ? (
+                <p className="text-sm text-destructive">{logStream.error}</p>
+              ) : null}
+
+              {shouldStream ? (
+                <>
+                  {logStream.logs.length > 0 ? (
+                    <div className="rounded-md border border-border bg-background/60 flex-1 min-h-0 flex flex-col overflow-hidden">
+                      <pre
+                        ref={logEndRef}
+                        className="flex-1 overflow-auto whitespace-pre-wrap p-3 text-xs text-foreground"
+                      >
+                        {logStream.logs
+                          .map((log) => `[${new Date(log.createdAt).toLocaleTimeString()}] ${log.stage.toUpperCase()} ${log.level.toUpperCase()} ${log.message}`)
+                          .join("\n")}
+                      </pre>
+                    </div>
+                  ) : logStream.isStreaming ? (
+                    <p className="text-sm text-muted-foreground">Waiting for build logs...</p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No logs available for this run yet.</p>
+                  )}
+
+                  {logStream.runStatus ? (
+                    <div className="flex items-center gap-2">
+                      <RadioIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">
+                        Run finished with status: <span className="font-medium text-foreground">{logStream.runStatus}</span>
+                      </span>
+                    </div>
+                  ) : null}
+                </>
+              ) : isLoadingPipeline ? (
                 <p className="text-sm text-muted-foreground">Loading pipeline logs...</p>
               ) : pipelineView ? (
                 <>
@@ -624,7 +687,9 @@ export function EmployerSubmissionsExplorer({
                         size="sm"
                         variant={pipelineView.selectedRun?.id === run.id ? "secondary" : "outline"}
                         onClick={() => {
-                          void loadSubmissionLogs(activeLogsSubmissionId, run.id)
+                          if (activeLogsSubmissionId && activeLogsSubmissionStatus) {
+                            void loadSubmissionLogs(activeLogsSubmissionId, activeLogsSubmissionStatus, run.id)
+                          }
                         }}
                       >
                         {run.trigger}:{run.status}
@@ -632,8 +697,8 @@ export function EmployerSubmissionsExplorer({
                     ))}
                   </div>
 
-                  <div className="rounded-md border border-border bg-background/60 p-3">
-                    <pre className="max-h-96 overflow-auto whitespace-pre-wrap text-xs text-foreground">
+                  <div className="rounded-md border border-border bg-background/60 flex-1 min-h-0 flex flex-col overflow-hidden">
+                    <pre className="flex-1 overflow-auto whitespace-pre-wrap p-3 text-xs text-foreground">
                       {pipelineView.logs.length > 0
                         ? pipelineView.logs
                             .map((log) => `[${new Date(log.createdAt).toLocaleTimeString()}] ${log.stage.toUpperCase()} ${log.level.toUpperCase()} ${log.message}`)
@@ -645,19 +710,19 @@ export function EmployerSubmissionsExplorer({
               ) : (
                 <p className="text-sm text-muted-foreground">No pipeline data available.</p>
               )}
-            </CardContent>
-          </Card>
-        ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
 
-        {activeAiSubmissionId ? (
-          <Card className="app-panel">
-            <CardHeader>
-              <CardTitle>AI Performance Report</CardTitle>
-              <CardDescription>
-                Candidate analysis and employer follow-up Q&A grounded in repository evidence.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+      <Dialog open={!!activeAiSubmissionId} onOpenChange={(open) => !open && setActiveAiSubmissionId(null)}>
+        <DialogContent className="sm:max-w-[95vw] lg:max-w-4xl w-[95vw] max-h-[90vh] flex flex-col overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>AI Performance Report</DialogTitle>
+            <DialogDescription>
+              Candidate analysis and employer follow-up Q&A grounded in repository evidence.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto min-h-0 space-y-4 px-1 pb-4">
               {aiReportErrorMessage ? (
                 <p className="text-sm text-destructive">{aiReportErrorMessage}</p>
               ) : null}
@@ -682,7 +747,9 @@ export function EmployerSubmissionsExplorer({
                       size="sm"
                       variant="outline"
                       onClick={() => {
-                        void loadSubmissionAiReport(activeAiSubmissionId)
+                        if (activeAiSubmissionId) {
+                          void loadSubmissionAiReport(activeAiSubmissionId)
+                        }
                       }}
                       disabled={isLoadingAiReport}
                     >
@@ -692,151 +759,232 @@ export function EmployerSubmissionsExplorer({
                   </div>
 
                   {aiReportView.report ? (
-                    <div className="space-y-4 rounded-md border border-border bg-background/40 p-4">
-                      <div className="flex items-center gap-2">
-                        <p className="app-overline">Report status</p>
-                        <Badge variant={aiReportStatusBadgeVariantMap[aiReportView.report.status]}>
-                          {aiReportView.report.status}
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between rounded-lg border border-border bg-card p-4 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                            <SparklesIcon className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">AI Analysis</p>
+                            <p className="text-xs text-muted-foreground">Generated code review and architecture assessment</p>
+                          </div>
+                        </div>
+                        <Badge variant={aiReportStatusBadgeVariantMap[aiReportView.report.status]} className="px-3 py-1 text-sm">
+                          {aiReportView.report.status === "completed" ? "Completed" : aiReportView.report.status === "pending" ? "Analyzing..." : "Failed"}
                         </Badge>
                       </div>
 
                       {aiReportView.report.status === "pending" ? (
-                        <p className="text-sm text-muted-foreground">
-                          Analysis is still running. Refresh in a moment to load the completed report.
-                        </p>
+                        <div className="flex flex-col items-center justify-center py-12 space-y-4 rounded-lg border border-dashed border-border">
+                           <div className="relative flex h-12 w-12 items-center justify-center">
+                             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/20 opacity-75" />
+                             <BrainCircuitIcon className="relative h-6 w-6 text-primary animate-pulse" />
+                           </div>
+                          <p className="text-sm text-muted-foreground">
+                            Analysis is currently running. Refresh in a moment to load the completed report.
+                          </p>
+                        </div>
                       ) : null}
 
                       {aiReportView.report.status === "failed" ? (
-                        <p className="text-sm text-destructive">
-                          {aiReportView.report.failureReason ?? "Unable to generate the report."}
-                        </p>
+                        <div className="flex flex-col items-center justify-center py-10 space-y-3 rounded-lg border border-destructive/20 bg-destructive/10">
+                          <AlertTriangleIcon className="h-8 w-8 text-destructive" />
+                          <p className="text-sm font-medium text-destructive">
+                            {aiReportView.report.failureReason ?? "Unable to generate the report."}
+                          </p>
+                        </div>
                       ) : null}
 
                       {aiReportView.report.status === "completed" ? (
-                        <div className="space-y-4">
-                          <section className="space-y-1">
-                            <p className="app-overline">Project overview</p>
-                            <p className="text-sm text-foreground">{aiReportView.report.projectOverview}</p>
-                          </section>
+                        <div className="grid gap-6">
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <Card className="shadow-sm">
+                              <CardHeader className="pb-3">
+                                <CardTitle className="flex items-center gap-2 text-base">
+                                  <FileTextIcon className="h-4 w-4 text-primary" />
+                                  Project overview
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <p className="text-sm leading-relaxed text-muted-foreground">{aiReportView.report.projectOverview}</p>
+                              </CardContent>
+                            </Card>
 
-                          <section className="space-y-1">
-                            <p className="app-overline">Notable structure or changes</p>
-                            <p className="text-sm text-foreground">{aiReportView.report.notableStructure}</p>
-                          </section>
+                            <Card className="shadow-sm">
+                              <CardHeader className="pb-3">
+                                <CardTitle className="flex items-center gap-2 text-base">
+                                  <CodeIcon className="h-4 w-4 text-primary" />
+                                  Notable structure
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <p className="text-sm leading-relaxed text-muted-foreground">{aiReportView.report.notableStructure}</p>
+                              </CardContent>
+                            </Card>
+                          </div>
 
-                          <section className="space-y-2">
-                            <p className="app-overline">Engineering strengths</p>
-                            <ul className="space-y-1 text-sm text-foreground">
-                              {aiReportView.report.engineeringStrengths.map((strength) => (
-                                <li key={strength} className="rounded-md border border-border/70 bg-background/50 px-3 py-2">
-                                  {strength}
-                                </li>
-                              ))}
-                            </ul>
-                          </section>
+                          <Card className="shadow-sm border-emerald-500/20 bg-emerald-500/5">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="flex items-center gap-2 text-base text-emerald-600 dark:text-emerald-500">
+                                <CheckCircle2Icon className="h-4 w-4" />
+                                Engineering strengths
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <ul className="grid gap-2 sm:grid-cols-2">
+                                {aiReportView.report.engineeringStrengths.map((strength, i) => (
+                                  <li key={i} className="flex items-start gap-2 rounded-md bg-background/50 px-3 py-2.5 text-sm shadow-sm border border-border/50">
+                                    <div className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                                    <span className="leading-snug">{strength}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </CardContent>
+                          </Card>
 
-                          <section className="space-y-2">
-                            <p className="app-overline">Risks or concerns</p>
-                            <ul className="space-y-1 text-sm text-foreground">
-                              {aiReportView.report.risksOrConcerns.map((risk) => (
-                                <li key={risk} className="rounded-md border border-border/70 bg-background/50 px-3 py-2">
-                                  {risk}
-                                </li>
-                              ))}
-                            </ul>
-                          </section>
+                          <Card className="shadow-sm border-amber-500/20 bg-amber-500/5">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="flex items-center gap-2 text-base text-amber-600 dark:text-amber-500">
+                                <AlertTriangleIcon className="h-4 w-4" />
+                                Risks or concerns
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <ul className="grid gap-2 sm:grid-cols-2">
+                                {aiReportView.report.risksOrConcerns.map((risk, i) => (
+                                  <li key={i} className="flex items-start gap-2 rounded-md bg-background/50 px-3 py-2.5 text-sm shadow-sm border border-border/50">
+                                    <div className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                                    <span className="leading-snug">{risk}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </CardContent>
+                          </Card>
 
-                          <section className="space-y-2">
-                            <p className="app-overline">Suggested interview follow-up questions</p>
-                            <ul className="space-y-1 text-sm text-foreground">
-                              {aiReportView.report.suggestedQuestions.map((question) => (
-                                <li key={question} className="rounded-md border border-border/70 bg-background/50 px-3 py-2">
-                                  {question}
-                                </li>
-                              ))}
-                            </ul>
-                          </section>
+                          <Card className="shadow-sm border-blue-500/20 bg-blue-500/5">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="flex items-center gap-2 text-base text-blue-600 dark:text-blue-500">
+                                <MessageSquareIcon className="h-4 w-4" />
+                                Suggested follow-up questions
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <ul className="grid gap-3">
+                                {aiReportView.report.suggestedQuestions.map((question, i) => (
+                                  <li key={i} className="flex items-start gap-3 rounded-md bg-background/50 p-3 text-sm shadow-sm border border-border/50 transition-colors hover:bg-background/80">
+                                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-xs font-medium text-blue-600 dark:text-blue-500">
+                                      {i + 1}
+                                    </div>
+                                    <span className="mt-0.5 leading-relaxed">{question}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </CardContent>
+                          </Card>
                         </div>
                       ) : null}
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No AI report is available yet for this submission.
-                    </p>
-                  )}
-
-                  <div className="space-y-3 rounded-md border border-border bg-background/40 p-4">
-                    <div>
-                      <p className="app-overline">Follow-up Q&A</p>
-                      <p className="text-sm text-muted-foreground">
-                        Ask free-form questions; answers are grounded in repository analysis and the generated report.
+                    <div className="flex flex-col items-center justify-center py-12 rounded-lg border border-dashed border-border bg-muted/30">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-4">
+                        <SparklesIcon className="h-6 w-6 text-muted-foreground" />
+                      </div>
+                      <p className="text-center text-sm font-medium text-foreground">
+                        No AI report available
+                      </p>
+                      <p className="text-center text-sm text-muted-foreground mt-1 max-w-sm">
+                        An AI report hasn't been generated for this submission yet.
                       </p>
                     </div>
+                  )}
 
-                    <div className="space-y-2">
-                      <Label htmlFor="ai-question">Your question</Label>
-                      <Textarea
-                        id="ai-question"
-                        value={aiQuestionDraft}
-                        onChange={(event) => {
-                          setAiQuestionDraft(event.target.value)
-                        }}
-                        placeholder="What trade-offs did the candidate make in architecture and performance?"
-                        className="min-h-20"
-                        disabled={!canAskAiQuestion || isAskingAiQuestion}
-                      />
-                      {!canAskAiQuestion ? (
-                        <p className="text-xs text-muted-foreground">
-                          Follow-up questions are available after a completed AI report.
-                        </p>
-                      ) : null}
+                  <div className="mt-8 space-y-4">
+                    <div className="flex items-center gap-2">
+                       <div className="h-px flex-1 bg-border" />
+                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Follow-up Q&A</p>
+                       <div className="h-px flex-1 bg-border" />
                     </div>
+                    
+                    <Card className="shadow-sm">
+                      <CardHeader className="pb-4">
+                        <CardDescription>
+                          Ask free-form questions; answers are grounded in repository analysis and the generated report.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        <div className="space-y-4">
+                          {aiReportView.messages.length > 0 ? (
+                            <div className="space-y-4">
+                              {aiReportView.messages.map((message) => (
+                                <div
+                                  key={message.id}
+                                  className={`flex gap-3 ${message.role === "assistant" ? "" : "flex-row-reverse"}`}
+                                >
+                                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${message.role === "assistant" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                                    {message.role === "assistant" ? <SparklesIcon className="h-4 w-4" /> : <span className="text-xs font-medium">You</span>}
+                                  </div>
+                                  <div className={`rounded-xl px-4 py-3 text-sm ${message.role === "assistant" ? "bg-muted/50 rounded-tl-none border border-border/50" : "bg-primary text-primary-foreground rounded-tr-none"}`}>
+                                    <p className="whitespace-pre-wrap leading-relaxed">{message.message}</p>
+                                    <p className={`mt-2 text-[10px] ${message.role === "assistant" ? "text-muted-foreground" : "text-primary-foreground/70 text-right"}`}>
+                                      {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center py-6 text-center">
+                              <MessageSquareIcon className="h-8 w-8 text-muted/50 mb-3" />
+                              <p className="text-sm text-muted-foreground">
+                                No questions asked yet for this submission.
+                              </p>
+                            </div>
+                          )}
+                        </div>
 
-                    <div className="flex justify-end">
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          void handleAskAiQuestion()
-                        }}
-                        disabled={
-                          !canAskAiQuestion || isAskingAiQuestion || aiQuestionDraft.trim().length === 0
-                        }
-                      >
-                        {isAskingAiQuestion ? "Asking..." : "Ask AI"}
-                      </Button>
-                    </div>
-
-                    <div className="space-y-2">
-                      {aiReportView.messages.length > 0 ? (
-                        aiReportView.messages.map((message) => (
-                          <div
-                            key={message.id}
-                            className="rounded-md border border-border/70 bg-background/50 px-3 py-2"
-                          >
-                            <p className="app-overline">
-                              {message.role === "assistant" ? "AI Assistant" : "Employer"} ·{" "}
-                              {new Date(message.createdAt).toLocaleString()}
-                            </p>
-                            <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">
-                              {message.message}
-                            </p>
+                        <div className="flex items-end gap-3 pt-2">
+                          <div className="flex-1 space-y-2">
+                            <Textarea
+                              id="ai-question"
+                              value={aiQuestionDraft}
+                              onChange={(event) => setAiQuestionDraft(event.target.value)}
+                              placeholder={canAskAiQuestion ? "Ask about architecture, trade-offs, or specific features..." : "Wait for the AI report to finish before asking questions."}
+                              className="min-h-[80px] resize-none"
+                              disabled={!canAskAiQuestion || isAskingAiQuestion}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  if (canAskAiQuestion && !isAskingAiQuestion && aiQuestionDraft.trim().length > 0) {
+                                    void handleAskAiQuestion();
+                                  }
+                                }
+                              }}
+                            />
                           </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          No questions asked yet for this submission.
-                        </p>
-                      )}
-                    </div>
+                          <Button
+                            size="icon"
+                            className="h-[80px] w-[80px] shrink-0 rounded-md"
+                            onClick={() => void handleAskAiQuestion()}
+                            disabled={!canAskAiQuestion || isAskingAiQuestion || aiQuestionDraft.trim().length === 0}
+                          >
+                            {isAskingAiQuestion ? (
+                               <RefreshCwIcon className="h-5 w-5 animate-spin" />
+                            ) : (
+                               <ArrowRightIcon className="h-5 w-5" />
+                            )}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">No AI report data available.</p>
               )}
-            </CardContent>
-          </Card>
-        ) : null}
-      </section>
-    </WorkspaceShell>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }

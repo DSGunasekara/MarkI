@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useMemo } from "react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { Link } from "@tanstack/react-router"
 import { RefreshCwIcon } from "lucide-react"
 
-import { WorkspaceShell } from "@/components/shared/workspace-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -14,18 +15,8 @@ import {
 import {
   candidateApi,
   toErrorMessage,
-  type CandidateOverview,
-  type DashboardSubmissionStatus,
-  type SessionUser
+  type DashboardSubmissionStatus
 } from "@/lib/api"
-
-type CandidateDashboardProps = {
-  user: SessionUser
-  onSignOut: () => Promise<void>
-  onOpenSubmitRepository: () => void
-}
-
-type OverviewLoadMode = "initial" | "refresh"
 
 type SubmissionBadgeVariant = "default" | "secondary" | "destructive" | "outline"
 
@@ -48,54 +39,20 @@ const toRepositoryHref = (repositoryUrl: string): string => {
   return `https://${repositoryUrl}`
 }
 
-export function CandidatePending({
-  user,
-  onSignOut,
-  onOpenSubmitRepository
-}: CandidateDashboardProps) {
-  const [overview, setOverview] = useState<CandidateOverview | null>(null)
-  const [overviewErrorMessage, setOverviewErrorMessage] = useState<string | null>(null)
-  const [isLoadingOverview, setIsLoadingOverview] = useState(true)
-  const [isRefreshingOverview, setIsRefreshingOverview] = useState(false)
-  const [activeLogsSubmissionId, setActiveLogsSubmissionId] = useState<string | null>(null)
-  const [pipelineErrorMessage, setPipelineErrorMessage] = useState<string | null>(null)
-  const [isLoadingPipeline, setIsLoadingPipeline] = useState(false)
-  const [pipelineView, setPipelineView] = useState<Awaited<
-    ReturnType<typeof candidateApi.getSubmissionLogs>
-  > | null>(null)
+export function CandidatePending() {
+  const queryClient = useQueryClient()
 
-  const loadOverview = useCallback(async (mode: OverviewLoadMode) => {
-    if (mode === "initial") {
-      setIsLoadingOverview(true)
-    } else {
-      setIsRefreshingOverview(true)
-    }
+  const {
+    data: overview,
+    error,
+    isLoading,
+    isFetching
+  } = useQuery({
+    queryKey: ["candidate", "overview"],
+    queryFn: () => candidateApi.getOverview({ submissionsLimit: 12 })
+  })
 
-    setOverviewErrorMessage(null)
-
-    try {
-      const response = await candidateApi.getOverview({ submissionsLimit: 12 })
-      setOverview(response)
-    } catch (error: unknown) {
-      setOverviewErrorMessage(toErrorMessage(error))
-    } finally {
-      if (mode === "initial") {
-        setIsLoadingOverview(false)
-      } else {
-        setIsRefreshingOverview(false)
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    const timerId = window.setTimeout(() => {
-      void loadOverview("initial")
-    }, 0)
-
-    return () => {
-      window.clearTimeout(timerId)
-    }
-  }, [loadOverview])
+  const errorMessage = error ? toErrorMessage(error) : null
 
   const metrics = useMemo(() => {
     return (
@@ -109,64 +66,46 @@ export function CandidatePending({
     )
   }, [overview])
 
-  const loadSubmissionLogs = useCallback(
-    async (submissionId: string, runId?: string) => {
-      setIsLoadingPipeline(true)
-      setPipelineErrorMessage(null)
-      setActiveLogsSubmissionId(submissionId)
+  const handleRefresh = () => {
+    void queryClient.invalidateQueries({
+      queryKey: ["candidate", "overview"]
+    })
+  }
 
-      try {
-        const response = await candidateApi.getSubmissionLogs({
-          submissionId,
-          runId
-        })
-        setPipelineView(response)
-      } catch (error: unknown) {
-        setPipelineErrorMessage(toErrorMessage(error))
-      } finally {
-        setIsLoadingPipeline(false)
-      }
+  const deleteMutation = useMutation({
+    mutationFn: async (submissionId: string) => {
+      await candidateApi.deleteSubmission(submissionId)
     },
-    []
-  )
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["candidate", "overview"] })
+    }
+  })
+
+  const handleDelete = (id: string) => {
+    if (confirm("Are you sure you want to delete this submission? This action cannot be undone.")) {
+      deleteMutation.mutate(id)
+    }
+  }
 
   return (
-    <WorkspaceShell
-      workspaceLabel="Candidate Workspace"
-      title="Dashboard"
-      description="Track your submission pipeline and assignment progress."
-      userEmail={user.email}
-      navItems={[
-        {
-          key: "dashboard",
-          label: "Dashboard",
-          isActive: true,
-          onClick: () => {
-            // no-op: already on dashboard
-          }
-        },
-        {
-          key: "submit-repository",
-          label: "Submit Repository",
-          isActive: false,
-          onClick: onOpenSubmitRepository
-        }
-      ]}
-      onSignOut={onSignOut}
-      headerActions={
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            void loadOverview("refresh")
-          }}
-          disabled={isRefreshingOverview}
-        >
-          <RefreshCwIcon className={isRefreshingOverview ? "animate-spin" : ""} />
-          Refresh
-        </Button>
-      }
-    >
+    <div className="mx-auto w-full max-w-7xl space-y-4 px-4 py-4 md:px-6 lg:px-8">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Track your submission pipeline and assignment progress.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isFetching}
+          >
+            <RefreshCwIcon className={isFetching ? "animate-spin" : ""} />
+            Refresh
+          </Button>
+        </div>
+      </div>
       <section className="space-y-4">
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <Card className="app-panel">
@@ -201,9 +140,9 @@ export function CandidatePending({
           </Card>
         </section>
 
-        {overviewErrorMessage ? (
+        {errorMessage ? (
           <Card className="border-destructive/50 bg-destructive/10">
-            <CardContent className="py-3 text-sm text-destructive">{overviewErrorMessage}</CardContent>
+            <CardContent className="py-3 text-sm text-destructive">{errorMessage}</CardContent>
           </Card>
         ) : null}
 
@@ -213,7 +152,7 @@ export function CandidatePending({
             <CardDescription>Track your assignment submissions and runner status updates.</CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoadingOverview && !overview ? (
+            {isLoading ? (
               <p className="text-sm text-muted-foreground">Loading submissions...</p>
             ) : overview && overview.recentSubmissions.length > 0 ? (
               <div className="overflow-x-auto">
@@ -227,7 +166,7 @@ export function CandidatePending({
                       <th className="px-3 py-2 font-medium">Commit</th>
                       <th className="px-3 py-2 font-medium">Status</th>
                       <th className="px-3 py-2 font-medium">Updated</th>
-                      <th className="px-3 py-2 font-medium">Logs</th>
+                      <th className="px-3 py-2 font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -271,15 +210,29 @@ export function CandidatePending({
                         </td>
                         <td className="px-3 py-3 text-muted-foreground">{formatDateTime(submission.updatedAt)}</td>
                         <td className="px-3 py-3">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              void loadSubmissionLogs(submission.id)
-                            }}
-                          >
-                            View logs
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              asChild
+                            >
+                              <Link
+                                to="/candidate/submissions/$submissionId"
+                                params={{ submissionId: submission.id }}
+                              >
+                                View logs
+                              </Link>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="px-2"
+                              disabled={deleteMutation.isPending}
+                              onClick={() => handleDelete(submission.id)}
+                            >
+                              Delete
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -291,56 +244,7 @@ export function CandidatePending({
             )}
           </CardContent>
         </Card>
-
-        {activeLogsSubmissionId ? (
-          <Card className="app-panel">
-            <CardHeader>
-              <CardTitle>Build Logs</CardTitle>
-              <CardDescription>
-                Inspect build and deployment output for the selected submission.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {pipelineErrorMessage ? (
-                <p className="text-sm text-destructive">{pipelineErrorMessage}</p>
-              ) : null}
-
-              {isLoadingPipeline ? (
-                <p className="text-sm text-muted-foreground">Loading pipeline logs...</p>
-              ) : pipelineView ? (
-                <>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {pipelineView.runs.map((run) => (
-                      <Button
-                        key={run.id}
-                        size="sm"
-                        variant={pipelineView.selectedRun?.id === run.id ? "secondary" : "outline"}
-                        onClick={() => {
-                          void loadSubmissionLogs(activeLogsSubmissionId, run.id)
-                        }}
-                      >
-                        {run.trigger}:{run.status}
-                      </Button>
-                    ))}
-                  </div>
-
-                  <div className="rounded-md border border-border bg-background/60 p-3">
-                    <pre className="max-h-96 overflow-auto whitespace-pre-wrap text-xs text-foreground">
-                      {pipelineView.logs.length > 0
-                        ? pipelineView.logs
-                            .map((log) => `[${new Date(log.createdAt).toLocaleTimeString()}] ${log.stage.toUpperCase()} ${log.level.toUpperCase()} ${log.message}`)
-                            .join("\n")
-                        : "No logs available for this run yet."}
-                    </pre>
-                  </div>
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">No pipeline data available.</p>
-              )}
-            </CardContent>
-          </Card>
-        ) : null}
       </section>
-    </WorkspaceShell>
+    </div>
   )
 }

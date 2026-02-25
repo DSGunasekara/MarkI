@@ -30,6 +30,7 @@ export type AssignmentRecord = {
 export type DashboardAssignment = {
   id: string
   title: string
+  instructions: string
   joinCode: string
   createdAt: string
   updatedAt: string
@@ -117,6 +118,17 @@ export type EmployerSubmissionExplorer = {
   assignmentOptions: EmployerSubmissionExplorerAssignment[]
   totalSubmissions: number
   submissions: EmployerSubmissionExplorerRecord[]
+}
+
+export type EmployerAssignmentExplorer = {
+  filters: {
+    search: string | null
+    sort: EmployerSubmissionsSort
+    limit: number
+    offset: number
+  }
+  totalAssignments: number
+  assignments: DashboardAssignment[]
 }
 
 export type CandidateSubmission = {
@@ -252,6 +264,10 @@ type DashboardOverviewEnvelope = {
 
 type DashboardSubmissionsEnvelope = {
   data: EmployerSubmissionExplorer
+}
+
+type DashboardAssignmentsEnvelope = {
+  data: EmployerAssignmentExplorer
 }
 
 type CandidateOverviewEnvelope = {
@@ -456,6 +472,37 @@ export const dashboardApi = {
     return payload.data
   },
 
+  getAssignments: async (input?: {
+    search?: string
+    sort?: EmployerSubmissionsSort
+    limit?: number
+    offset?: number
+  }): Promise<EmployerAssignmentExplorer> => {
+    const query = new URLSearchParams()
+
+    if (typeof input?.search === "string" && input.search.trim().length > 0) {
+      query.set("search", input.search.trim())
+    }
+
+    if (typeof input?.sort === "string") {
+      query.set("sort", input.sort)
+    }
+
+    if (typeof input?.limit === "number") {
+      query.set("limit", String(input.limit))
+    }
+
+    if (typeof input?.offset === "number") {
+      query.set("offset", String(input.offset))
+    }
+
+    const queryString = query.toString()
+    const path =
+      queryString.length > 0 ? `/api/dashboard/assignments?${queryString}` : "/api/dashboard/assignments"
+    const payload = await request<DashboardAssignmentsEnvelope>(path)
+    return payload.data
+  },
+
   getSubmissions: async (input?: {
     assignmentId?: string
     status?: DashboardSubmissionStatus
@@ -617,6 +664,19 @@ export const candidateApi = {
       path
     )
     return payload.data
+  },
+
+  deleteSubmission: async (submissionId: string): Promise<void> => {
+    await request(`/api/candidate/submissions/${submissionId}`, {
+      method: "DELETE"
+    })
+  },
+
+  cancelBuildRun: async (submissionId: string, runId: string): Promise<void> => {
+    await request(`/api/candidate/submissions/${submissionId}/cancel`, {
+      method: "POST",
+      body: JSON.stringify({ runId })
+    })
   }
 }
 

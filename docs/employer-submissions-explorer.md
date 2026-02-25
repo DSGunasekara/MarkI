@@ -29,8 +29,8 @@ Provide an employer-focused page to inspect all submissions grouped by assignmen
 5. Results are grouped by assignment cards.
 6. Filters can be applied/cleared without leaving the page.
 7. Pagination buttons move through filtered results.
-8. Employers can open per-submission pipeline logs and switch between recent runs.
-9. Employers can open AI performance reports and ask grounded follow-up questions in the same workspace.
+8. Employers can open per-submission pipeline logs (via a Dialog/Modal popup) and switch between recent runs.
+9. Employers can open AI performance reports (via a Dialog/Modal popup) and ask grounded follow-up questions in the same workspace.
 
 ## Files
 - `/Users/Dilain/.codex/worktrees/5eff/MarkI/apps/web/src/components/dashboard/employer-submissions-explorer.tsx`
