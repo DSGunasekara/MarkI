@@ -664,6 +664,19 @@ export const candidateApi = {
       path
     )
     return payload.data
+  },
+
+  deleteSubmission: async (submissionId: string): Promise<void> => {
+    await request(`/api/candidate/submissions/${submissionId}`, {
+      method: "DELETE"
+    })
+  },
+
+  cancelBuildRun: async (submissionId: string, runId: string): Promise<void> => {
+    await request(`/api/candidate/submissions/${submissionId}/cancel`, {
+      method: "POST",
+      body: JSON.stringify({ runId })
+    })
   }
 }
 

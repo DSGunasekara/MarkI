@@ -18,6 +18,7 @@ import { Route as AuthedEmployerSubmissionsRouteImport } from './routes/_authed/
 import { Route as AuthedEmployerAssignmentsIndexRouteImport } from './routes/_authed/employer/assignments.index'
 import { Route as AuthedEmployerAssignmentsNewRouteImport } from './routes/_authed/employer/assignments.new'
 import { Route as AuthedCandidateSubmissionsNewRouteImport } from './routes/_authed/candidate/submissions.new'
+import { Route as AuthedCandidateSubmissionsSubmissionIdRouteImport } from './routes/_authed/candidate/submissions.$submissionId'
 
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
@@ -67,6 +68,12 @@ const AuthedCandidateSubmissionsNewRoute =
     path: '/candidate/submissions/new',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedCandidateSubmissionsSubmissionIdRoute =
+  AuthedCandidateSubmissionsSubmissionIdRouteImport.update({
+    id: '/candidate/submissions/$submissionId',
+    path: '/candidate/submissions/$submissionId',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -74,6 +81,7 @@ export interface FileRoutesByFullPath {
   '/employer/submissions': typeof AuthedEmployerSubmissionsRoute
   '/candidate/': typeof AuthedCandidateIndexRoute
   '/employer/': typeof AuthedEmployerIndexRoute
+  '/candidate/submissions/$submissionId': typeof AuthedCandidateSubmissionsSubmissionIdRoute
   '/candidate/submissions/new': typeof AuthedCandidateSubmissionsNewRoute
   '/employer/assignments/new': typeof AuthedEmployerAssignmentsNewRoute
   '/employer/assignments/': typeof AuthedEmployerAssignmentsIndexRoute
@@ -84,6 +92,7 @@ export interface FileRoutesByTo {
   '/employer/submissions': typeof AuthedEmployerSubmissionsRoute
   '/candidate': typeof AuthedCandidateIndexRoute
   '/employer': typeof AuthedEmployerIndexRoute
+  '/candidate/submissions/$submissionId': typeof AuthedCandidateSubmissionsSubmissionIdRoute
   '/candidate/submissions/new': typeof AuthedCandidateSubmissionsNewRoute
   '/employer/assignments/new': typeof AuthedEmployerAssignmentsNewRoute
   '/employer/assignments': typeof AuthedEmployerAssignmentsIndexRoute
@@ -96,6 +105,7 @@ export interface FileRoutesById {
   '/_authed/employer/submissions': typeof AuthedEmployerSubmissionsRoute
   '/_authed/candidate/': typeof AuthedCandidateIndexRoute
   '/_authed/employer/': typeof AuthedEmployerIndexRoute
+  '/_authed/candidate/submissions/$submissionId': typeof AuthedCandidateSubmissionsSubmissionIdRoute
   '/_authed/candidate/submissions/new': typeof AuthedCandidateSubmissionsNewRoute
   '/_authed/employer/assignments/new': typeof AuthedEmployerAssignmentsNewRoute
   '/_authed/employer/assignments/': typeof AuthedEmployerAssignmentsIndexRoute
@@ -108,6 +118,7 @@ export interface FileRouteTypes {
     | '/employer/submissions'
     | '/candidate/'
     | '/employer/'
+    | '/candidate/submissions/$submissionId'
     | '/candidate/submissions/new'
     | '/employer/assignments/new'
     | '/employer/assignments/'
@@ -118,6 +129,7 @@ export interface FileRouteTypes {
     | '/employer/submissions'
     | '/candidate'
     | '/employer'
+    | '/candidate/submissions/$submissionId'
     | '/candidate/submissions/new'
     | '/employer/assignments/new'
     | '/employer/assignments'
@@ -129,6 +141,7 @@ export interface FileRouteTypes {
     | '/_authed/employer/submissions'
     | '/_authed/candidate/'
     | '/_authed/employer/'
+    | '/_authed/candidate/submissions/$submissionId'
     | '/_authed/candidate/submissions/new'
     | '/_authed/employer/assignments/new'
     | '/_authed/employer/assignments/'
@@ -205,6 +218,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedCandidateSubmissionsNewRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/candidate/submissions/$submissionId': {
+      id: '/_authed/candidate/submissions/$submissionId'
+      path: '/candidate/submissions/$submissionId'
+      fullPath: '/candidate/submissions/$submissionId'
+      preLoaderRoute: typeof AuthedCandidateSubmissionsSubmissionIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
@@ -212,6 +232,7 @@ interface AuthedRouteChildren {
   AuthedEmployerSubmissionsRoute: typeof AuthedEmployerSubmissionsRoute
   AuthedCandidateIndexRoute: typeof AuthedCandidateIndexRoute
   AuthedEmployerIndexRoute: typeof AuthedEmployerIndexRoute
+  AuthedCandidateSubmissionsSubmissionIdRoute: typeof AuthedCandidateSubmissionsSubmissionIdRoute
   AuthedCandidateSubmissionsNewRoute: typeof AuthedCandidateSubmissionsNewRoute
   AuthedEmployerAssignmentsNewRoute: typeof AuthedEmployerAssignmentsNewRoute
   AuthedEmployerAssignmentsIndexRoute: typeof AuthedEmployerAssignmentsIndexRoute
@@ -221,6 +242,8 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedEmployerSubmissionsRoute: AuthedEmployerSubmissionsRoute,
   AuthedCandidateIndexRoute: AuthedCandidateIndexRoute,
   AuthedEmployerIndexRoute: AuthedEmployerIndexRoute,
+  AuthedCandidateSubmissionsSubmissionIdRoute:
+    AuthedCandidateSubmissionsSubmissionIdRoute,
   AuthedCandidateSubmissionsNewRoute: AuthedCandidateSubmissionsNewRoute,
   AuthedEmployerAssignmentsNewRoute: AuthedEmployerAssignmentsNewRoute,
   AuthedEmployerAssignmentsIndexRoute: AuthedEmployerAssignmentsIndexRoute,

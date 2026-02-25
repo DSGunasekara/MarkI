@@ -131,3 +131,31 @@ candidateRoutes.get(
     return streamController.candidateLogStream(c, params, query)
   }
 )
+
+const cancelSubmissionRunSchema = z.object({
+  runId: z.string().uuid()
+})
+
+candidateRoutes.delete(
+  '/submissions/:submissionId',
+  requireAuth,
+  requireRole(['candidate']),
+  zValidator('param', candidateSubmissionParamsSchema),
+  async (c) => {
+    const params = c.req.valid('param')
+    return candidateController.deleteSubmission(c, params)
+  }
+)
+
+candidateRoutes.post(
+  '/submissions/:submissionId/cancel',
+  requireAuth,
+  requireRole(['candidate']),
+  zValidator('param', candidateSubmissionParamsSchema),
+  zValidator('json', cancelSubmissionRunSchema),
+  async (c) => {
+    const params = c.req.valid('param')
+    const payload = c.req.valid('json')
+    return candidateController.cancelSubmissionRun(c, params, payload)
+  }
+)

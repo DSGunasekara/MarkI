@@ -241,5 +241,37 @@ export const candidateController = {
     return c.json({
       data: pipelineView
     })
+  },
+
+  deleteSubmission: async (c: CandidateContext, params: CandidateSubmissionLogsParams) => {
+    const user = c.get('user')
+
+    if (!user) {
+      return c.json({ message: 'Authentication required.' }, 401)
+    }
+
+    const deleted = await candidateService.deleteSubmission(user.id, params.submissionId)
+
+    if (!deleted) {
+      return c.json({ message: 'Submission not found or unauthorized.' }, 404)
+    }
+
+    return c.json({ message: 'Submission deleted.' })
+  },
+
+  cancelSubmissionRun: async (c: CandidateContext, params: CandidateSubmissionLogsParams, payload: { runId: string }) => {
+    const user = c.get('user')
+
+    if (!user) {
+      return c.json({ message: 'Authentication required.' }, 401)
+    }
+
+    const canceled = await candidateService.cancelBuildRun(user.id, params.submissionId, payload.runId)
+
+    if (!canceled) {
+      return c.json({ message: 'Run not found or already completed.' }, 400)
+    }
+
+    return c.json({ message: 'Run canceled.' })
   }
 }

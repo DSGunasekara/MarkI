@@ -1,5 +1,5 @@
-import { assignments, db, submissions } from '@hiring-engine/db'
-import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
+import { assignments, buildRuns, db, submissions } from '@hiring-engine/db'
+import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 
 import { githubAppService } from './github-app.service.js'
 import { pipelineService } from './pipeline.service.js'
@@ -261,5 +261,43 @@ export const candidateService = {
     }
 
     return githubAppService.listInstallationRepositories(resolvedInstallationId)
+  },
+
+  deleteSubmission: async (candidateId: string, submissionId: string): Promise<boolean> => {
+    const [submissionRecord] = await db
+      .select({ id: submissions.id })
+      .from(submissions)
+      .where(and(eq(submissions.id, submissionId), eq(submissions.candidateId, candidateId)))
+      .limit(1)
+
+    if (!submissionRecord) {
+      return false
+    }
+
+    const activeRuns = await db
+      .select({ id: buildRuns.id })
+      .from(buildRuns)
+      .where(and(eq(buildRuns.submissionId, submissionId), inArray(buildRuns.status, ['queued', 'running'])))
+
+    for (const run of activeRuns) {
+      await pipelineService.cancelPipelineRun(run.id)
+    }
+
+    await db.delete(submissions).where(eq(submissions.id, submissionId))
+    return true
+  },
+
+  cancelBuildRun: async (candidateId: string, submissionId: string, runId: string): Promise<boolean> => {
+    const [submissionRecord] = await db
+      .select({ id: submissions.id })
+      .from(submissions)
+      .where(and(eq(submissions.id, submissionId), eq(submissions.candidateId, candidateId)))
+      .limit(1)
+
+    if (!submissionRecord) {
+      return false
+    }
+
+    return pipelineService.cancelPipelineRun(runId)
   }
 }

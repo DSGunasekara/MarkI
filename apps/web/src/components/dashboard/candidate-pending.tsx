@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { RadioIcon, RefreshCwIcon } from "lucide-react"
+import { useMemo } from "react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { Link } from "@tanstack/react-router"
+import { RefreshCwIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -16,7 +17,6 @@ import {
   toErrorMessage,
   type DashboardSubmissionStatus
 } from "@/lib/api"
-import { useLogStream } from "@/hooks/use-log-stream"
 
 type SubmissionBadgeVariant = "default" | "secondary" | "destructive" | "outline"
 
@@ -41,40 +41,6 @@ const toRepositoryHref = (repositoryUrl: string): string => {
 
 export function CandidatePending() {
   const queryClient = useQueryClient()
-
-  const [activeLogsSubmissionId, setActiveLogsSubmissionId] = useState<string | null>(null)
-  const [activeLogsSubmissionStatus, setActiveLogsSubmissionStatus] = useState<DashboardSubmissionStatus | null>(null)
-  const [pipelineErrorMessage, setPipelineErrorMessage] = useState<string | null>(null)
-  const [isLoadingPipeline, setIsLoadingPipeline] = useState(false)
-  const [pipelineView, setPipelineView] = useState<Awaited<
-    ReturnType<typeof candidateApi.getSubmissionLogs>
-  > | null>(null)
-  const [activeStreamRunId, setActiveStreamRunId] = useState<string | null>(null)
-
-  const logEndRef = useRef<HTMLPreElement>(null)
-
-  const shouldStream = activeLogsSubmissionId !== null &&
-    (activeLogsSubmissionStatus === "building" || activeLogsSubmissionStatus === "pending")
-
-  const logStream = useLogStream({
-    basePath: "/api/candidate/submissions",
-    submissionId: activeLogsSubmissionId,
-    runId: activeStreamRunId,
-    enabled: shouldStream
-  })
-  // Auto-scroll when streaming new logs
-  useEffect(() => {
-    if (logStream.isStreaming && logEndRef.current) {
-      logEndRef.current.scrollTop = logEndRef.current.scrollHeight
-    }
-  }, [logStream.logs.length, logStream.isStreaming])
-
-  // When stream finishes, refresh the overview to update statuses
-  useEffect(() => {
-    if (logStream.runStatus === "deployed" || logStream.runStatus === "failed") {
-      void queryClient.invalidateQueries({ queryKey: ["candidate", "overview"] })
-    }
-  }, [logStream.runStatus, queryClient])
 
   const {
     data: overview,
@@ -106,39 +72,20 @@ export function CandidatePending() {
     })
   }
 
-  const loadSubmissionLogs = useCallback(
-    async (submissionId: string, status: DashboardSubmissionStatus, runId?: string) => {
-      setActiveLogsSubmissionId(submissionId)
-      setActiveLogsSubmissionStatus(status)
-      setActiveStreamRunId(runId ?? null)
-
-      if (status === "building" || status === "pending") {
-        // Use SSE streaming for active builds
-        logStream.resetStream()
-        setPipelineView(null)
-        setPipelineErrorMessage(null)
-        setIsLoadingPipeline(false)
-        return
-      }
-
-      // Fall back to REST for completed/failed runs
-      setIsLoadingPipeline(true)
-      setPipelineErrorMessage(null)
-
-      try {
-        const response = await candidateApi.getSubmissionLogs({
-          submissionId,
-          runId
-        })
-        setPipelineView(response)
-      } catch (error: unknown) {
-        setPipelineErrorMessage(toErrorMessage(error))
-      } finally {
-        setIsLoadingPipeline(false)
-      }
+  const deleteMutation = useMutation({
+    mutationFn: async (submissionId: string) => {
+      await candidateApi.deleteSubmission(submissionId)
     },
-    [logStream]
-  )
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["candidate", "overview"] })
+    }
+  })
+
+  const handleDelete = (id: string) => {
+    if (confirm("Are you sure you want to delete this submission? This action cannot be undone.")) {
+      deleteMutation.mutate(id)
+    }
+  }
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-4 px-4 py-4 md:px-6 lg:px-8">
@@ -219,7 +166,7 @@ export function CandidatePending() {
                       <th className="px-3 py-2 font-medium">Commit</th>
                       <th className="px-3 py-2 font-medium">Status</th>
                       <th className="px-3 py-2 font-medium">Updated</th>
-                      <th className="px-3 py-2 font-medium">Logs</th>
+                      <th className="px-3 py-2 font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -263,15 +210,29 @@ export function CandidatePending() {
                         </td>
                         <td className="px-3 py-3 text-muted-foreground">{formatDateTime(submission.updatedAt)}</td>
                         <td className="px-3 py-3">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              void loadSubmissionLogs(submission.id, submission.status)
-                            }}
-                          >
-                            View logs
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              asChild
+                            >
+                              <Link
+                                to="/candidate/submissions/$submissionId"
+                                params={{ submissionId: submission.id }}
+                              >
+                                View logs
+                              </Link>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="px-2"
+                              disabled={deleteMutation.isPending}
+                              onClick={() => handleDelete(submission.id)}
+                            >
+                              Delete
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -283,100 +244,6 @@ export function CandidatePending() {
             )}
           </CardContent>
         </Card>
-
-        {activeLogsSubmissionId ? (
-          <Card className="app-panel">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Build Logs</CardTitle>
-                  <CardDescription>
-                    Inspect build and deployment output for the selected submission.
-                  </CardDescription>
-                </div>
-                {logStream.isStreaming ? (
-                  <div className="flex items-center gap-2 rounded-full border border-border px-3 py-1">
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                    </span>
-                    <span className="text-xs font-medium text-emerald-500">Streaming live</span>
-                  </div>
-                ) : null}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {pipelineErrorMessage ? (
-                <p className="text-sm text-destructive">{pipelineErrorMessage}</p>
-              ) : null}
-
-              {logStream.error ? (
-                <p className="text-sm text-destructive">{logStream.error}</p>
-              ) : null}
-
-              {shouldStream ? (
-                <>
-                  {logStream.logs.length > 0 ? (
-                    <div className="rounded-md border border-border bg-background/60 p-3">
-                      <pre
-                        ref={logEndRef}
-                        className="max-h-96 overflow-auto whitespace-pre-wrap text-xs text-foreground"
-                      >
-                        {logStream.logs
-                          .map((log) => `[${new Date(log.createdAt).toLocaleTimeString()}] ${log.stage.toUpperCase()} ${log.level.toUpperCase()} ${log.message}`)
-                          .join("\n")}
-                      </pre>
-                    </div>
-                  ) : logStream.isStreaming ? (
-                    <p className="text-sm text-muted-foreground">Waiting for build logs...</p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No logs available for this run yet.</p>
-                  )}
-
-                  {logStream.runStatus ? (
-                    <div className="flex items-center gap-2">
-                      <RadioIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">
-                        Run finished with status: <span className="font-medium text-foreground">{logStream.runStatus}</span>
-                      </span>
-                    </div>
-                  ) : null}
-                </>
-              ) : isLoadingPipeline ? (
-                <p className="text-sm text-muted-foreground">Loading pipeline logs...</p>
-              ) : pipelineView ? (
-                <>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {pipelineView.runs.map((run) => (
-                      <Button
-                        key={run.id}
-                        size="sm"
-                        variant={pipelineView.selectedRun?.id === run.id ? "secondary" : "outline"}
-                        onClick={() => {
-                          void loadSubmissionLogs(activeLogsSubmissionId, activeLogsSubmissionStatus!, run.id)
-                        }}
-                      >
-                        {run.trigger}:{run.status}
-                      </Button>
-                    ))}
-                  </div>
-
-                  <div className="rounded-md border border-border bg-background/60 p-3">
-                    <pre className="max-h-96 overflow-auto whitespace-pre-wrap text-xs text-foreground">
-                      {pipelineView.logs.length > 0
-                        ? pipelineView.logs
-                            .map((log) => `[${new Date(log.createdAt).toLocaleTimeString()}] ${log.stage.toUpperCase()} ${log.level.toUpperCase()} ${log.message}`)
-                            .join("\n")
-                        : "No logs available for this run yet."}
-                    </pre>
-                  </div>
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">No pipeline data available.</p>
-              )}
-            </CardContent>
-          </Card>
-        ) : null}
       </section>
     </div>
   )
