@@ -36,11 +36,11 @@ export function CandidateSubmitRepository() {
   const [submitMessage, setSubmitMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   
-  const [installationId, setInstallationId] = useState(() => {
+  const initialInstallationId = useMemo(() => {
     if (typeof window === "undefined") return ""
     const params = new URLSearchParams(window.location.search)
     return params.get("installation_id") ?? ""
-  })
+  }, [])
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -67,7 +67,7 @@ export function CandidateSubmitRepository() {
 
   const isGitHubAppSelectionMode = Boolean(githubAppConfig?.isConfigured)
 
-  const normalizedInstallationId = installationId.trim()
+  const normalizedInstallationId = initialInstallationId.trim()
   const isInstallationIdValid = normalizedInstallationId.length === 0 || /^\d+$/.test(normalizedInstallationId)
 
   const {
@@ -80,8 +80,11 @@ export function CandidateSubmitRepository() {
     queryFn: () => candidateApi.getInstallationRepositories(
         normalizedInstallationId.length > 0 ? normalizedInstallationId : undefined
     ),
-    enabled: isGitHubAppSelectionMode && isInstallationIdValid,
+    enabled: isGitHubAppSelectionMode && isInstallationIdValid
   })
+
+  // Derive the final installation ID to show logic (e.g. uninstall URL) from the backend data
+  const effectiveInstallationId = repositoriesData?.installationId ?? String(initialInstallationId)
 
   const repositories = repositoriesData?.repositories ?? []
   const repositoriesErrorMessage = !isInstallationIdValid
@@ -91,12 +94,6 @@ export function CandidateSubmitRepository() {
       : null
 
   const isLoadingRepositories = isFetchingRepositories
-
-  useEffect(() => {
-    if (repositoriesData?.installationId && repositoriesData.installationId !== installationId) {
-      setInstallationId(repositoriesData.installationId)
-    }
-  }, [repositoriesData?.installationId, installationId])
 
   useEffect(() => {
     if (repositories.length > 0) {
@@ -113,12 +110,12 @@ export function CandidateSubmitRepository() {
     return repositories.find((repository) => repository.fullName === selectedRepositoryFullName) ?? null
   }, [repositories, selectedRepositoryFullName])
   const uninstallUrl = useMemo(() => {
-    if (!installationId) {
+    if (!effectiveInstallationId) {
       return null
     }
 
-    return `https://github.com/settings/installations/${installationId}`
-  }, [installationId])
+    return `https://github.com/settings/installations/${effectiveInstallationId}`
+  }, [effectiveInstallationId])
 
   const submitMutation = useMutation({
     mutationFn: async (input: {
@@ -172,7 +169,7 @@ export function CandidateSubmitRepository() {
         joinCode: normalizedJoinCode,
         repositoryFullName: selectedRepositoryFullName,
         githubInstallationId:
-          installationId.trim().length > 0 ? installationId.trim() : undefined
+          effectiveInstallationId.trim().length > 0 ? effectiveInstallationId.trim() : undefined
       })
     } else {
       submitMutation.mutate({
@@ -209,14 +206,14 @@ export function CandidateSubmitRepository() {
                   Install the GitHub App, then load and select a repository from your installation.
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
-                  {!installationId && githubAppConfig.installUrl ? (
+                  {!effectiveInstallationId && githubAppConfig.installUrl ? (
                     <Button asChild size="sm" variant="outline">
                       <a href={githubAppConfig.installUrl} target="_blank" rel="noreferrer">
                         Install GitHub App
                       </a>
                     </Button>
                   ) : null}
-                  {!installationId && !githubAppConfig.installUrl ? (
+                  {!effectiveInstallationId && !githubAppConfig.installUrl ? (
                     <p className="text-sm text-muted-foreground">
                       Install URL unavailable. Contact support with app slug configuration.
                     </p>
@@ -232,7 +229,7 @@ export function CandidateSubmitRepository() {
                   >
                     {isLoadingRepositories ? "Loading repositories..." : "Load repositories"}
                   </Button>
-                  {installationId && uninstallUrl ? (
+                  {effectiveInstallationId && uninstallUrl ? (
                     <Button asChild size="sm" variant="outline">
                       <a href={uninstallUrl} target="_blank" rel="noreferrer">
                         Uninstall GitHub App
@@ -284,7 +281,7 @@ export function CandidateSubmitRepository() {
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    {installationId
+                    {effectiveInstallationId
                       ? "No repositories found for this installation."
                       : "No saved installation found yet. Install the app once, then load repositories."}
                   </p>
