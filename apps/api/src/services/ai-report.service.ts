@@ -47,10 +47,12 @@ type AiMessage = {
   content: string
 }
 
-type ChatCompletionsResponse = {
-  choices?: Array<{
-    message?: {
-      content?: string | null
+type GenerateContentResponse = {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        text?: string
+      }>
     }
   }>
 }
@@ -101,8 +103,8 @@ const parseJsonSafe = (value: string): unknown => {
   }
 }
 
-const getOpenAiModel = (): string => {
-  return process.env.OPENAI_MODEL?.trim() || 'gpt-4.1-mini'
+const getGeminiModel = (): string => {
+  return process.env.GEMINI_MODEL?.trim() || 'gemini-1.5-flash'
 }
 
 const serializeContext = (context: RepositoryContext): string => {
@@ -151,85 +153,82 @@ const toPerformanceReport = (value: unknown): AiPerformanceReport | null => {
   }
 }
 
-const callOpenAi = async (input: {
+const callGemini = async (input: {
   messages: AiMessage[]
   expectJsonSchema: boolean
 }): Promise<string> => {
-  const apiKey = process.env.OPENAI_API_KEY?.trim()
+  const apiKey = process.env.GEMINI_API_KEY?.trim()
   if (!apiKey) {
-    console.error('[callOpenAi] OPENAI_API_KEY is not configured.')
-    throw new Error('OPENAI_API_KEY is not configured.')
+    console.error('[callGemini] GEMINI_API_KEY is not configured.')
+    throw new Error('GEMINI_API_KEY is not configured.')
   }
 
-  console.log(`[callOpenAi] Making request to OpenAI using model: ${getOpenAiModel()}`);
+  const model = getGeminiModel()
+  console.log(`[callGemini] Making request to Gemini using model: ${model}`);
 
-  const requestBody = {
-    model: getOpenAiModel(),
-    temperature: 0.1,
-    messages: input.messages,
-    response_format: input.expectJsonSchema
-      ? {
-          type: 'json_schema',
-          json_schema: {
-            name: 'candidate_performance_report',
-            strict: true,
-            schema: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                projectOverview: { type: 'string' },
-                notableStructure: { type: 'string' },
-                engineeringStrengths: {
-                  type: 'array',
-                  items: { type: 'string' }
-                },
-                risksOrConcerns: {
-                  type: 'array',
-                  items: { type: 'string' }
-                },
-                suggestedInterviewQuestions: {
-                  type: 'array',
-                  items: { type: 'string' }
-                }
-              },
-              required: [
-                'projectOverview',
-                'notableStructure',
-                'engineeringStrengths',
-                'risksOrConcerns',
-                'suggestedInterviewQuestions'
-              ]
-            }
-          }
-        }
-      : undefined
+  const systemMessage = input.messages.find(m => m.role === 'system')?.content
+  const systemInstruction = systemMessage ? { parts: [{ text: systemMessage }] } : undefined
+
+  const contents = input.messages
+    .filter(m => m.role !== 'system')
+    .map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }]
+    }))
+
+  const requestBody: any = {
+    systemInstruction,
+    contents,
+    generationConfig: {
+      temperature: 0.1,
+    }
   }
 
-  console.log(`[callOpenAi] Request body:`, JSON.stringify(requestBody, null, 2));
+  if (input.expectJsonSchema) {
+    requestBody.generationConfig.responseMimeType = 'application/json'
+    requestBody.generationConfig.responseSchema = {
+      type: 'OBJECT',
+      properties: {
+        projectOverview: { type: 'STRING' },
+        notableStructure: { type: 'STRING' },
+        engineeringStrengths: { type: 'ARRAY', items: { type: 'STRING' } },
+        risksOrConcerns: { type: 'ARRAY', items: { type: 'STRING' } },
+        suggestedInterviewQuestions: { type: 'ARRAY', items: { type: 'STRING' } }
+      },
+      required: [
+        'projectOverview',
+        'notableStructure',
+        'engineeringStrengths',
+        'risksOrConcerns',
+        'suggestedInterviewQuestions'
+      ]
+    }
+  }
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  console.log(`[callGemini] Request body:`, JSON.stringify(requestBody, null, 2));
+
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify(requestBody)
   })
 
   const payloadText = await response.text()
-  console.log(`[callOpenAi] Response status: ${response.status}`);
-  console.log(`[callOpenAi] Response payload: ${payloadText}`);
+  console.log(`[callGemini] Response status: ${response.status}`);
+  console.log(`[callGemini] Response payload: ${payloadText}`);
 
   if (!response.ok) {
-    console.error(`[callOpenAi] Request failed: ${response.status} ${payloadText}`);
-    throw new Error(`OpenAI API request failed: ${response.status} ${payloadText}`)
+    console.error(`[callGemini] Request failed: ${response.status} ${payloadText}`);
+    throw new Error(`Gemini API request failed: ${response.status} ${payloadText}`)
   }
 
-  const payload = parseJsonSafe(payloadText) as ChatCompletionsResponse | null
-  const content = payload?.choices?.[0]?.message?.content
+  const payload = parseJsonSafe(payloadText) as GenerateContentResponse | null
+  const content = payload?.candidates?.[0]?.content?.parts?.[0]?.text
 
   if (!content || content.trim().length === 0) {
-    throw new Error('OpenAI API returned an empty response.')
+    throw new Error('Gemini API returned an empty response.')
   }
 
   return content
@@ -473,7 +472,7 @@ const formatContextForPrompt = (context: RepositoryContext): string => {
 const generateReportWithLlm = async (context: RepositoryContext): Promise<AiPerformanceReport> => {
   const promptContext = formatContextForPrompt(context)
 
-  const content = await callOpenAi({
+  const content = await callGemini({
     expectJsonSchema: true,
     messages: [
       {
@@ -517,7 +516,7 @@ const answerQuestionWithLlm = async (input: {
     .join('\n')
 
   const reportText = JSON.stringify(input.report, null, 2)
-  const content = await callOpenAi({
+  const content = await callGemini({
     expectJsonSchema: false,
     messages: [
       {
@@ -561,7 +560,7 @@ const getLatestReportForSubmission = async (submissionId: string) => {
 export const aiReportService = {
   generateReportForSubmission: async (input: GenerateReportInput) => {
     const context = await buildRepositoryContext(input.repositoryDirectory, input.submissionId)
-    const model = getOpenAiModel()
+    const model = getGeminiModel()
 
     const [reportRecord] = await db
       .insert(aiReports)
