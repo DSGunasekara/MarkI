@@ -157,8 +157,11 @@ const callOpenAi = async (input: {
 }): Promise<string> => {
   const apiKey = process.env.OPENAI_API_KEY?.trim()
   if (!apiKey) {
+    console.error('[callOpenAi] OPENAI_API_KEY is not configured.')
     throw new Error('OPENAI_API_KEY is not configured.')
   }
+
+  console.log(`[callOpenAi] Making request to OpenAI using model: ${getOpenAiModel()}`);
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -210,7 +213,11 @@ const callOpenAi = async (input: {
   })
 
   const payloadText = await response.text()
+  console.log(`[callOpenAi] Response status: ${response.status}`);
+  console.log(`[callOpenAi] Response payload: ${payloadText}`);
+
   if (!response.ok) {
+    console.error(`[callOpenAi] Request failed: ${response.status} ${payloadText}`);
     throw new Error(`OpenAI API request failed: ${response.status} ${payloadText}`)
   }
 
@@ -485,8 +492,11 @@ export const aiReportService = {
       let report: AiPerformanceReport
 
       try {
+        console.log(`[aiReportService] Generating report with LLM for submission: ${input.submissionId}`);
         report = await generateReportWithLlm(context)
-      } catch {
+        console.log(`[aiReportService] Successfully generated report with LLM!`);
+      } catch (error) {
+        console.error(`[aiReportService] LLM report generation failed, falling back to basic report. Error:`, error);
         report = buildFallbackReport(context)
       }
 
@@ -609,6 +619,7 @@ export const aiReportService = {
 
     let answer = ''
     try {
+      console.log(`[aiReportService] Answering employer question with LLM for submission: ${input.submissionId}`);
       answer = await answerQuestionWithLlm({
         question: input.question,
         context: parsedContext,
@@ -618,7 +629,9 @@ export const aiReportService = {
           message: message.message
         }))
       })
-    } catch {
+      console.log(`[aiReportService] Successfully answered question with LLM`);
+    } catch (error) {
+      console.error(`[aiReportService] Answering employer question failed. Error:`, error);
       answer =
         'Unable to run LLM reasoning at this moment. Review the report sections and repository evidence directly for this question.'
     }
