@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { RadioIcon, RefreshCwIcon, SparklesIcon } from "lucide-react"
+import {
+  RadioIcon,
+  RefreshCwIcon,
+  SparklesIcon,
+  FileTextIcon,
+  ArrowRightIcon,
+  BrainCircuitIcon,
+  CodeIcon,
+  AlertTriangleIcon,
+  MessageSquareIcon,
+  CheckCircle2Icon
+} from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -748,142 +759,224 @@ export function EmployerSubmissionsExplorer({
                   </div>
 
                   {aiReportView.report ? (
-                    <div className="space-y-4 rounded-md border border-border bg-background/40 p-4">
-                      <div className="flex items-center gap-2">
-                        <p className="app-overline">Report status</p>
-                        <Badge variant={aiReportStatusBadgeVariantMap[aiReportView.report.status]}>
-                          {aiReportView.report.status}
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between rounded-lg border border-border bg-card p-4 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                            <SparklesIcon className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">AI Analysis</p>
+                            <p className="text-xs text-muted-foreground">Generated code review and architecture assessment</p>
+                          </div>
+                        </div>
+                        <Badge variant={aiReportStatusBadgeVariantMap[aiReportView.report.status]} className="px-3 py-1 text-sm">
+                          {aiReportView.report.status === "completed" ? "Completed" : aiReportView.report.status === "pending" ? "Analyzing..." : "Failed"}
                         </Badge>
                       </div>
 
                       {aiReportView.report.status === "pending" ? (
-                        <p className="text-sm text-muted-foreground">
-                          Analysis is still running. Refresh in a moment to load the completed report.
-                        </p>
+                        <div className="flex flex-col items-center justify-center py-12 space-y-4 rounded-lg border border-dashed border-border">
+                           <div className="relative flex h-12 w-12 items-center justify-center">
+                             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/20 opacity-75" />
+                             <BrainCircuitIcon className="relative h-6 w-6 text-primary animate-pulse" />
+                           </div>
+                          <p className="text-sm text-muted-foreground">
+                            Analysis is currently running. Refresh in a moment to load the completed report.
+                          </p>
+                        </div>
                       ) : null}
 
                       {aiReportView.report.status === "failed" ? (
-                        <p className="text-sm text-destructive">
-                          {aiReportView.report.failureReason ?? "Unable to generate the report."}
-                        </p>
+                        <div className="flex flex-col items-center justify-center py-10 space-y-3 rounded-lg border border-destructive/20 bg-destructive/10">
+                          <AlertTriangleIcon className="h-8 w-8 text-destructive" />
+                          <p className="text-sm font-medium text-destructive">
+                            {aiReportView.report.failureReason ?? "Unable to generate the report."}
+                          </p>
+                        </div>
                       ) : null}
 
                       {aiReportView.report.status === "completed" ? (
-                        <div className="space-y-4">
-                          <section className="space-y-1">
-                            <p className="app-overline">Project overview</p>
-                            <p className="text-sm text-foreground">{aiReportView.report.projectOverview}</p>
-                          </section>
+                        <div className="grid gap-6">
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <Card className="shadow-sm">
+                              <CardHeader className="pb-3">
+                                <CardTitle className="flex items-center gap-2 text-base">
+                                  <FileTextIcon className="h-4 w-4 text-primary" />
+                                  Project overview
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <p className="text-sm leading-relaxed text-muted-foreground">{aiReportView.report.projectOverview}</p>
+                              </CardContent>
+                            </Card>
 
-                          <section className="space-y-1">
-                            <p className="app-overline">Notable structure or changes</p>
-                            <p className="text-sm text-foreground">{aiReportView.report.notableStructure}</p>
-                          </section>
+                            <Card className="shadow-sm">
+                              <CardHeader className="pb-3">
+                                <CardTitle className="flex items-center gap-2 text-base">
+                                  <CodeIcon className="h-4 w-4 text-primary" />
+                                  Notable structure
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <p className="text-sm leading-relaxed text-muted-foreground">{aiReportView.report.notableStructure}</p>
+                              </CardContent>
+                            </Card>
+                          </div>
 
-                          <section className="space-y-2">
-                            <p className="app-overline">Engineering strengths</p>
-                            <ul className="space-y-1 text-sm text-foreground">
-                              {aiReportView.report.engineeringStrengths.map((strength) => (
-                                <li key={strength} className="rounded-md border border-border/70 bg-background/50 px-3 py-2">
-                                  {strength}
-                                </li>
-                              ))}
-                            </ul>
-                          </section>
+                          <Card className="shadow-sm border-emerald-500/20 bg-emerald-500/5">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="flex items-center gap-2 text-base text-emerald-600 dark:text-emerald-500">
+                                <CheckCircle2Icon className="h-4 w-4" />
+                                Engineering strengths
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <ul className="grid gap-2 sm:grid-cols-2">
+                                {aiReportView.report.engineeringStrengths.map((strength, i) => (
+                                  <li key={i} className="flex items-start gap-2 rounded-md bg-background/50 px-3 py-2.5 text-sm shadow-sm border border-border/50">
+                                    <div className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                                    <span className="leading-snug">{strength}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </CardContent>
+                          </Card>
 
-                          <section className="space-y-2">
-                            <p className="app-overline">Risks or concerns</p>
-                            <ul className="space-y-1 text-sm text-foreground">
-                              {aiReportView.report.risksOrConcerns.map((risk) => (
-                                <li key={risk} className="rounded-md border border-border/70 bg-background/50 px-3 py-2">
-                                  {risk}
-                                </li>
-                              ))}
-                            </ul>
-                          </section>
+                          <Card className="shadow-sm border-amber-500/20 bg-amber-500/5">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="flex items-center gap-2 text-base text-amber-600 dark:text-amber-500">
+                                <AlertTriangleIcon className="h-4 w-4" />
+                                Risks or concerns
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <ul className="grid gap-2 sm:grid-cols-2">
+                                {aiReportView.report.risksOrConcerns.map((risk, i) => (
+                                  <li key={i} className="flex items-start gap-2 rounded-md bg-background/50 px-3 py-2.5 text-sm shadow-sm border border-border/50">
+                                    <div className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                                    <span className="leading-snug">{risk}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </CardContent>
+                          </Card>
 
-                          <section className="space-y-2">
-                            <p className="app-overline">Suggested interview follow-up questions</p>
-                            <ul className="space-y-1 text-sm text-foreground">
-                              {aiReportView.report.suggestedQuestions.map((question) => (
-                                <li key={question} className="rounded-md border border-border/70 bg-background/50 px-3 py-2">
-                                  {question}
-                                </li>
-                              ))}
-                            </ul>
-                          </section>
+                          <Card className="shadow-sm border-blue-500/20 bg-blue-500/5">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="flex items-center gap-2 text-base text-blue-600 dark:text-blue-500">
+                                <MessageSquareIcon className="h-4 w-4" />
+                                Suggested follow-up questions
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <ul className="grid gap-3">
+                                {aiReportView.report.suggestedQuestions.map((question, i) => (
+                                  <li key={i} className="flex items-start gap-3 rounded-md bg-background/50 p-3 text-sm shadow-sm border border-border/50 transition-colors hover:bg-background/80">
+                                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-xs font-medium text-blue-600 dark:text-blue-500">
+                                      {i + 1}
+                                    </div>
+                                    <span className="mt-0.5 leading-relaxed">{question}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </CardContent>
+                          </Card>
                         </div>
                       ) : null}
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No AI report is available yet for this submission.
-                    </p>
-                  )}
-
-                  <div className="space-y-3 rounded-md border border-border bg-background/40 p-4">
-                    <div>
-                      <p className="app-overline">Follow-up Q&A</p>
-                      <p className="text-sm text-muted-foreground">
-                        Ask free-form questions; answers are grounded in repository analysis and the generated report.
+                    <div className="flex flex-col items-center justify-center py-12 rounded-lg border border-dashed border-border bg-muted/30">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-4">
+                        <SparklesIcon className="h-6 w-6 text-muted-foreground" />
+                      </div>
+                      <p className="text-center text-sm font-medium text-foreground">
+                        No AI report available
+                      </p>
+                      <p className="text-center text-sm text-muted-foreground mt-1 max-w-sm">
+                        An AI report hasn't been generated for this submission yet.
                       </p>
                     </div>
+                  )}
 
-                    <div className="space-y-2">
-                      <Label htmlFor="ai-question">Your question</Label>
-                      <Textarea
-                        id="ai-question"
-                        value={aiQuestionDraft}
-                        onChange={(event) => {
-                          setAiQuestionDraft(event.target.value)
-                        }}
-                        placeholder="What trade-offs did the candidate make in architecture and performance?"
-                        className="min-h-20"
-                        disabled={!canAskAiQuestion || isAskingAiQuestion}
-                      />
-                      {!canAskAiQuestion ? (
-                        <p className="text-xs text-muted-foreground">
-                          Follow-up questions are available after a completed AI report.
-                        </p>
-                      ) : null}
+                  <div className="mt-8 space-y-4">
+                    <div className="flex items-center gap-2">
+                       <div className="h-px flex-1 bg-border" />
+                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Follow-up Q&A</p>
+                       <div className="h-px flex-1 bg-border" />
                     </div>
+                    
+                    <Card className="shadow-sm">
+                      <CardHeader className="pb-4">
+                        <CardDescription>
+                          Ask free-form questions; answers are grounded in repository analysis and the generated report.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        <div className="space-y-4">
+                          {aiReportView.messages.length > 0 ? (
+                            <div className="space-y-4">
+                              {aiReportView.messages.map((message) => (
+                                <div
+                                  key={message.id}
+                                  className={`flex gap-3 ${message.role === "assistant" ? "" : "flex-row-reverse"}`}
+                                >
+                                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${message.role === "assistant" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                                    {message.role === "assistant" ? <SparklesIcon className="h-4 w-4" /> : <span className="text-xs font-medium">You</span>}
+                                  </div>
+                                  <div className={`rounded-xl px-4 py-3 text-sm ${message.role === "assistant" ? "bg-muted/50 rounded-tl-none border border-border/50" : "bg-primary text-primary-foreground rounded-tr-none"}`}>
+                                    <p className="whitespace-pre-wrap leading-relaxed">{message.message}</p>
+                                    <p className={`mt-2 text-[10px] ${message.role === "assistant" ? "text-muted-foreground" : "text-primary-foreground/70 text-right"}`}>
+                                      {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center py-6 text-center">
+                              <MessageSquareIcon className="h-8 w-8 text-muted/50 mb-3" />
+                              <p className="text-sm text-muted-foreground">
+                                No questions asked yet for this submission.
+                              </p>
+                            </div>
+                          )}
+                        </div>
 
-                    <div className="flex justify-end">
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          void handleAskAiQuestion()
-                        }}
-                        disabled={
-                          !canAskAiQuestion || isAskingAiQuestion || aiQuestionDraft.trim().length === 0
-                        }
-                      >
-                        {isAskingAiQuestion ? "Asking..." : "Ask AI"}
-                      </Button>
-                    </div>
-
-                    <div className="space-y-2">
-                      {aiReportView.messages.length > 0 ? (
-                        aiReportView.messages.map((message) => (
-                          <div
-                            key={message.id}
-                            className="rounded-md border border-border/70 bg-background/50 px-3 py-2"
-                          >
-                            <p className="app-overline">
-                              {message.role === "assistant" ? "AI Assistant" : "Employer"} ·{" "}
-                              {new Date(message.createdAt).toLocaleString()}
-                            </p>
-                            <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">
-                              {message.message}
-                            </p>
+                        <div className="flex items-end gap-3 pt-2">
+                          <div className="flex-1 space-y-2">
+                            <Textarea
+                              id="ai-question"
+                              value={aiQuestionDraft}
+                              onChange={(event) => setAiQuestionDraft(event.target.value)}
+                              placeholder={canAskAiQuestion ? "Ask about architecture, trade-offs, or specific features..." : "Wait for the AI report to finish before asking questions."}
+                              className="min-h-[80px] resize-none"
+                              disabled={!canAskAiQuestion || isAskingAiQuestion}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  if (canAskAiQuestion && !isAskingAiQuestion && aiQuestionDraft.trim().length > 0) {
+                                    void handleAskAiQuestion();
+                                  }
+                                }
+                              }}
+                            />
                           </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          No questions asked yet for this submission.
-                        </p>
-                      )}
-                    </div>
+                          <Button
+                            size="icon"
+                            className="h-[80px] w-[80px] shrink-0 rounded-md"
+                            onClick={() => void handleAskAiQuestion()}
+                            disabled={!canAskAiQuestion || isAskingAiQuestion || aiQuestionDraft.trim().length === 0}
+                          >
+                            {isAskingAiQuestion ? (
+                               <RefreshCwIcon className="h-5 w-5 animate-spin" />
+                            ) : (
+                               <ArrowRightIcon className="h-5 w-5" />
+                            )}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
                 </>
               ) : (
