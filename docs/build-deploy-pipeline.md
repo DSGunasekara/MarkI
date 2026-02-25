@@ -133,8 +133,8 @@ Add to API environment:
 - `PIPELINE_PREVIEW_PORT_MAX` (maximum host preview port)
 - `PIPELINE_DEPLOYMENT_BASE_URL` (simulated mode URL base)
 - `PIPELINE_COMMAND_TIMEOUT_MS` (per command timeout)
-- `OPENAI_API_KEY` (required for LLM report generation)
-- `OPENAI_MODEL` (optional; defaults to `gpt-4.1-mini`)
+- `GEMINI_API_KEY` (required for LLM report generation)
+- `GEMINI_MODEL` (optional; defaults to `gemini-3-flash-preview`)
 
 ## Notes
 - Docker deployment requires Docker daemon access from the API process.

@@ -53,8 +53,8 @@ Responsibilities:
    - assignment + submission metadata
    - `package.json`
    - top-level entries
-   - sampled source files
-2. Generate structured report via OpenAI Chat Completions (`json_schema` response format).
+   - sampled source files (distributed intelligently across different top-level directories for a representative view)
+2. Generate structured report via LLM (e.g. Gemini) context evaluation (`json_schema` response format).
 3. Fallback to deterministic report content if LLM call fails.
 4. Persist report status/content in `ai_reports`.
 5. Answer employer follow-up questions and persist messages in `ai_report_messages`.
@@ -93,10 +93,10 @@ Behavior:
 
 ## Environment Variables
 Required in API runtime:
-- `OPENAI_API_KEY`
+- `GEMINI_API_KEY` (or fallback `OPENAI_API_KEY`)
 
 Optional:
-- `OPENAI_MODEL` (default: `gpt-4.1-mini`)
+- `GEMINI_MODEL` (default: `gemini-3-flash-preview`)
 
 ## Notes
 - AI output assists employer evaluation; it does not replace evaluation logic.
