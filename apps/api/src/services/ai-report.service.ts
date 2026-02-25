@@ -265,46 +265,79 @@ const buildFallbackReport = (context: RepositoryContext): AiPerformanceReport =>
 const listSourceFiles = async (
   repositoryDirectory: string
 ): Promise<Array<{ path: string; excerpt: string }>> => {
-  const files: Array<{ path: string; excerpt: string }> = []
+  const discoveredPaths: string[] = []
+  const MAX_DISCOVERY = 1000
 
   const walk = async (directoryPath: string) => {
-    if (files.length >= MAX_SOURCE_FILES) {
-      return
-    }
+    if (discoveredPaths.length >= MAX_DISCOVERY) return
 
     const entries = await readdir(directoryPath, { withFileTypes: true })
 
     for (const entry of entries) {
-      if (files.length >= MAX_SOURCE_FILES) {
-        return
-      }
+      if (discoveredPaths.length >= MAX_DISCOVERY) return
 
       if (entry.isDirectory()) {
-        if (SKIP_DIRECTORIES.has(entry.name)) {
-          continue
-        }
-
+        if (SKIP_DIRECTORIES.has(entry.name)) continue
         await walk(path.join(directoryPath, entry.name))
         continue
       }
 
       const extension = path.extname(entry.name).toLowerCase()
-      if (!INCLUDE_EXTENSIONS.has(extension)) {
-        continue
-      }
+      if (!INCLUDE_EXTENSIONS.has(extension)) continue
 
       const absoluteFilePath = path.join(directoryPath, entry.name)
       const relativeFilePath = path.relative(repositoryDirectory, absoluteFilePath)
-      const rawFileContent = await readFile(absoluteFilePath, 'utf8')
-
-      files.push({
-        path: relativeFilePath,
-        excerpt: truncateText(normalizeText(rawFileContent), MAX_FILE_CHARS)
-      })
+      discoveredPaths.push(relativeFilePath)
     }
   }
 
   await walk(repositoryDirectory)
+
+  const groups: Record<string, string[]> = {}
+  for (const filePath of discoveredPaths) {
+    const parts = filePath.split(path.sep)
+    const topLevelDir = parts.length > 1 ? parts[0] : '[root]'
+    
+    if (!groups[topLevelDir]) {
+      groups[topLevelDir] = []
+    }
+    groups[topLevelDir].push(filePath)
+  }
+
+  const selectedPaths = new Set<string>()
+  const groupKeys = Object.keys(groups)
+  let changed = true
+
+  while (selectedPaths.size < MAX_SOURCE_FILES && changed) {
+    changed = false
+    for (const key of groupKeys) {
+      if (selectedPaths.size >= MAX_SOURCE_FILES) break
+      
+      const groupFiles = groups[key]
+      if (groupFiles.length > 0) {
+        const fileToSelect = groupFiles.shift()
+        if (fileToSelect) {
+          selectedPaths.add(fileToSelect)
+          changed = true
+        }
+      }
+    }
+  }
+
+  const files: Array<{ path: string; excerpt: string }> = []
+  for (const relativeFilePath of selectedPaths) {
+    try {
+      const absoluteFilePath = path.join(repositoryDirectory, relativeFilePath)
+      const rawFileContent = await readFile(absoluteFilePath, 'utf8')
+      files.push({
+        path: relativeFilePath,
+        excerpt: truncateText(normalizeText(rawFileContent), MAX_FILE_CHARS)
+      })
+    } catch {
+      // Ignore read errors
+    }
+  }
+
   return files
 }
 
