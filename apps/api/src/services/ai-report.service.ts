@@ -378,8 +378,63 @@ const buildRepositoryContext = async (
 }
 
 const formatContextForPrompt = (context: RepositoryContext): string => {
-  const rawContext = JSON.stringify(context, null, 2)
-  return truncateText(rawContext, MAX_CONTEXT_CHARS)
+  let md = `# Repository Context\n\n`
+  
+  md += `## Submission Info\n`
+  md += `- Assignment: ${context.submission.assignmentTitle}\n`
+  md += `- URL: ${context.submission.repositoryUrl}\n`
+  if (context.submission.repositoryFullName) {
+    md += `- Full Name: ${context.submission.repositoryFullName}\n`
+  }
+  md += `\n`
+
+  if (context.packageJson) {
+    md += `## Package Information\n`
+    if (context.packageJson.name) {
+      md += `- Name: ${context.packageJson.name}\n`
+    }
+    
+    const scripts = Object.entries(context.packageJson.scripts)
+    if (scripts.length > 0) {
+      md += `- Scripts:\n`
+      for (const [key, value] of scripts) {
+        md += `  - ${key}: \`${value}\`\n`
+      }
+    }
+
+    if (context.packageJson.dependencies.length > 0) {
+      md += `- Dependencies: ${context.packageJson.dependencies.join(', ')}\n`
+    }
+    
+    if (context.packageJson.devDependencies.length > 0) {
+      md += `- Dev Dependencies: ${context.packageJson.devDependencies.join(', ')}\n`
+    }
+    md += `\n`
+  }
+
+  if (context.topLevelEntries.length > 0) {
+    md += `## Top Level Entries\n`
+    md += `${context.topLevelEntries.join(', ')}\n\n`
+  }
+
+  if (context.sourceFiles.length > 0) {
+    md += `## Source Files\n\n`
+    for (const file of context.sourceFiles) {
+      md += `### File: ${file.path}\n`
+      
+      let lang = ''
+      if (file.path.endsWith('.ts') || file.path.endsWith('.tsx')) lang = 'typescript'
+      else if (file.path.endsWith('.js') || file.path.endsWith('.jsx')) lang = 'javascript'
+      else if (file.path.endsWith('.json')) lang = 'json'
+      else if (file.path.endsWith('.css') || file.path.endsWith('.scss')) lang = 'css'
+      
+      md += `\`\`\`${lang}\n`
+      md += file.excerpt
+      md += `\n\`\`\`\n\n`
+    }
+  }
+
+  return truncateText(md.trim(), MAX_CONTEXT_CHARS)
 }
 
 const generateReportWithLlm = async (context: RepositoryContext): Promise<AiPerformanceReport> => {
