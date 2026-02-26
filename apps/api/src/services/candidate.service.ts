@@ -244,6 +244,23 @@ export const candidateService = {
     }
   },
 
+  getAssignmentByJoinCode: async (joinCode: string) => {
+    const normalizedJoinCode = joinCode.trim().toUpperCase()
+
+    const [assignmentRecord] = await db
+      .select({
+        id: assignments.id,
+        title: assignments.title,
+        instructions: assignments.instructions,
+        joinCode: assignments.joinCode
+      })
+      .from(assignments)
+      .where(eq(assignments.joinCode, normalizedJoinCode))
+      .limit(1)
+
+    return assignmentRecord ?? null
+  },
+
   getGitHubRepositories: async (candidateId: string, installationId?: string) => {
     const normalizedInstallationId = installationId?.trim()
 

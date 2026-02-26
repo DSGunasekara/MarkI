@@ -589,6 +589,11 @@ export const dashboardApi = {
 }
 
 export const candidateApi = {
+  getAssignmentByJoinCode: async (joinCode: string): Promise<AssignmentRecord> => {
+    const payload = await request<AssignmentEnvelope>(`/api/candidate/assignments/${joinCode}`)
+    return payload.data
+  },
+
   getOverview: async (input?: { submissionsLimit?: number }): Promise<CandidateOverview> => {
     const query = new URLSearchParams()
 

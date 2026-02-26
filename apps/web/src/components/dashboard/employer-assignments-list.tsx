@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { ChevronDownIcon, ChevronUpIcon, ClipboardCopyIcon, PlusIcon, RefreshCwIcon, SearchIcon } from "lucide-react"
+import { ChevronDownIcon, ChevronUpIcon, ClipboardCopyIcon, PlusIcon, RefreshCwIcon, SearchIcon, ShareIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -92,6 +92,7 @@ export function EmployerAssignmentsList() {
   const [sort, setSort] = useState<EmployerSubmissionsSort>("newest")
   const [offset, setOffset] = useState(0)
   const [copiedJoinCode, setCopiedJoinCode] = useState<string | null>(null)
+  const [copiedShareLink, setCopiedShareLink] = useState<string | null>(null)
 
   const queryParams = useMemo(
     () => ({ search: activeSearch, sort, offset }),
@@ -154,6 +155,19 @@ export function EmployerAssignmentsList() {
       setCopiedJoinCode(joinCode)
       window.setTimeout(() => {
         setCopiedJoinCode(null)
+      }, 2000)
+    } catch {
+      // Clipboard access denied — silently ignore
+    }
+  }, [])
+
+  const handleCopyShareLink = useCallback(async (joinCode: string) => {
+    try {
+      const shareUrl = `${window.location.origin}/candidate/submissions/new?joinCode=${joinCode}`
+      await navigator.clipboard.writeText(shareUrl)
+      setCopiedShareLink(joinCode)
+      window.setTimeout(() => {
+        setCopiedShareLink(null)
       }, 2000)
     } catch {
       // Clipboard access denied — silently ignore
@@ -314,8 +328,18 @@ export function EmployerAssignmentsList() {
                           >
                             <ClipboardCopyIcon className="h-3.5 w-3.5" />
                           </button>
+                          <button
+                            type="button"
+                            className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                            title="Copy share link"
+                            onClick={() => void handleCopyShareLink(assignment.joinCode)}
+                          >
+                            <ShareIcon className="h-3.5 w-3.5" />
+                          </button>
                           {copiedJoinCode === assignment.joinCode ? (
-                            <span className="text-xs text-primary">Copied!</span>
+                            <span className="text-xs text-primary">Copied code!</span>
+                          ) : copiedShareLink === assignment.joinCode ? (
+                            <span className="text-xs text-primary">Copied link!</span>
                           ) : null}
                         </div>
                       </td>

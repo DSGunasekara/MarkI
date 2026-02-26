@@ -71,6 +71,10 @@ const candidateSubmissionLogsQuerySchema = z.object({
   runId: z.string().uuid().optional()
 })
 
+const candidateAssignmentParamsSchema = z.object({
+  joinCode: z.string().trim().min(4).max(32)
+})
+
 export const candidateRoutes = new Hono<AppBindings>()
 
 candidateRoutes.post(
@@ -92,6 +96,17 @@ candidateRoutes.get(
   async (c) => {
     const query = c.req.valid('query')
     return candidateController.githubRepositories(c, query)
+  }
+)
+
+candidateRoutes.get(
+  '/assignments/:joinCode',
+  requireAuth,
+  requireRole(['candidate']),
+  zValidator('param', candidateAssignmentParamsSchema),
+  async (c) => {
+    const params = c.req.valid('param')
+    return candidateController.getAssignmentByJoinCode(c, params)
   }
 )
 

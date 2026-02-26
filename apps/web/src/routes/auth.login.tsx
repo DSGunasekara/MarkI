@@ -29,13 +29,12 @@ function AuthLoginPage() {
 
   const handleAuthenticated = async () => {
     await queryClient.invalidateQueries({ queryKey: ["session"] })
-
-    if (redirectTo && redirectTo.startsWith("/")) {
+    const session = await queryClient.fetchQuery(sessionQueryOptions)
+    if (redirectTo) {
       void navigate({ to: redirectTo })
       return
     }
 
-    const session = await queryClient.fetchQuery(sessionQueryOptions)
     if (session) {
       void navigate({ to: getDefaultPathForRole(session.user.role) })
     }
