@@ -31,7 +31,13 @@ export function CandidateSubmitRepository() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const [joinCode, setJoinCode] = useState("")
+  const initialJoinCode = useMemo(() => {
+    if (typeof window === "undefined") return ""
+    const params = new URLSearchParams(window.location.search)
+    return params.get("joinCode") ?? ""
+  }, [])
+
+  const [joinCode, setJoinCode] = useState(initialJoinCode)
   const [repositoryUrl, setRepositoryUrl] = useState("")
   const [submitMessage, setSubmitMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
