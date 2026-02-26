@@ -113,7 +113,7 @@ export function CandidateSubmitRepository() {
     queryFn: () => candidateApi.getInstallationRepositories(
         normalizedInstallationId.length > 0 ? normalizedInstallationId : undefined
     ),
-    enabled: isGitHubAppSelectionMode && isInstallationIdValid
+    enabled: isGitHubAppSelectionMode && isInstallationIdValid && normalizedInstallationId.length > 0
   })
 
   // Derive the final installation ID to show logic (e.g. uninstall URL) from the backend data
